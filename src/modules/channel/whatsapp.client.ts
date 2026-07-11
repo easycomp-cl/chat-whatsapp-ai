@@ -28,6 +28,13 @@ export class WhatsAppSendError extends Error {
     super(message);
     this.name = "WhatsAppSendError";
   }
+
+  /** Errores de auth/config no deben reintentar el job (evita respuestas duplicadas en BD). */
+  get isRetryable(): boolean {
+    if (this.isTokenExpired) return false;
+    if (this.status === 401 || this.status === 403) return false;
+    return this.status >= 500 || this.status === 408 || this.status === 429;
+  }
 }
 
 type SendMessageResponse = {

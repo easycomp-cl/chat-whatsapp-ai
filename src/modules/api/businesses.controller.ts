@@ -195,7 +195,7 @@ export async function patchBusinessSettings(req: Request, res: Response) {
 export async function createWhatsappAccount(req: Request, res: Response) {
   const id = paramId(req, "id");
   const body = whatsappAccountSchema.parse(req.body);
-  const encrypted = encryptionService.encrypt(body.access_token);
+  const encrypted = encryptionService.encrypt(body.access_token.trim());
   const channel = await prisma.tenantChannel.upsert({
     where: { phoneNumberId: body.phone_number_id },
     create: {

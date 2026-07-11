@@ -2,7 +2,8 @@ import {
   ConversationMode,
   ConversationStatus,
   MessageDirection,
-  SenderType
+  SenderType,
+  WhatsappDeliveryStatus
 } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import type { NormalizedIncomingMessage } from "../../types/whatsapp.js";
@@ -68,7 +69,8 @@ export class MessageIngestService {
         return {
           customer: existingFull.customer,
           conversation: existingFull.conversation,
-          message: existingFull
+          message: existingFull,
+          isDuplicate: true
         };
       }
     }
@@ -116,7 +118,23 @@ export class MessageIngestService {
       metadata: { messageId: persistedMessage.id }
     });
 
-    return { customer, conversation, message: persistedMessage };
+    return { customer, conversation, message: persistedMessage, isDuplicate: false };
+  }
+
+  async findPendingBotOutbound(input: {
+    conversationId: string;
+    after: Date;
+  }) {
+    return prisma.message.findFirst({
+      where: {
+        conversationId: input.conversationId,
+        direction: MessageDirection.OUTBOUND,
+        senderType: SenderType.BOT,
+        externalId: null,
+        createdAt: { gte: input.after }
+      },
+      orderBy: { createdAt: "asc" }
+    });
   }
 
   async ingestBotMessage(input: {
@@ -140,7 +158,11 @@ export class MessageIngestService {
         receiverPhone: normalizePhone(input.customerPhone),
         contentText: input.text,
         aiGenerated: input.aiGenerated ?? false,
-        externalId: input.externalId ?? null
+        externalId: input.externalId ?? null,
+        whatsappDeliveryStatus:
+          input.externalId != null
+            ? WhatsappDeliveryStatus.SENT
+            : WhatsappDeliveryStatus.PENDING
       }
     });
 
@@ -155,7 +177,24 @@ export class MessageIngestService {
   async setMessageExternalId(messageId: string, externalId: string) {
     await prisma.message.update({
       where: { id: messageId },
-      data: { externalId }
+      data: {
+        externalId,
+        whatsappDeliveryStatus: WhatsappDeliveryStatus.SENT
+      }
+    });
+  }
+
+  async markDeliveryPending(messageId: string) {
+    await prisma.message.update({
+      where: { id: messageId },
+      data: { whatsappDeliveryStatus: WhatsappDeliveryStatus.PENDING }
+    });
+  }
+
+  async markDeliveryFailed(messageId: string) {
+    await prisma.message.update({
+      where: { id: messageId },
+      data: { whatsappDeliveryStatus: WhatsappDeliveryStatus.FAILED }
     });
   }
 
@@ -184,6 +223,8 @@ export class MessageIngestService {
         contentText: input.text,
         aiGenerated: false,
         externalId: input.externalId ?? null,
+        whatsappDeliveryStatus:
+          input.externalId != null ? WhatsappDeliveryStatus.SENT : WhatsappDeliveryStatus.PENDING,
         replyToMessageId: input.replyToMessageId ?? null,
         quotedText: input.quotedText ?? null,
         quotedSenderType: input.quotedSenderType ?? null

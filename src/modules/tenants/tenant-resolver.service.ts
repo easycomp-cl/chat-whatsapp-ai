@@ -2,6 +2,7 @@ import { prisma } from "../../lib/prisma.js";
 import { normalizePhone } from "../../utils/phone.js";
 import { encryptionService } from "../../lib/encryption.service.js";
 import { env } from "../../config/env.js";
+import { logger } from "../../lib/logger.js";
 
 export class TenantResolverService {
   async resolveByChannel(input: { phoneNumberId: string; displayPhone?: string }) {
@@ -40,16 +41,23 @@ export class TenantResolverService {
   }
 
   resolveAccessToken(encrypted?: string | null): string {
-    // En desarrollo, .env manda para no quedar con token viejo cifrado en BD.
-    if (env.NODE_ENV === "development" && env.META_SYSTEM_USER_ACCESS_TOKEN) {
+    // Solo en local: permite forzar token desde .env sin tocar la BD.
+    if (
+      env.NODE_ENV === "development" &&
+      process.env.USE_ENV_WHATSAPP_TOKEN === "true" &&
+      env.META_SYSTEM_USER_ACCESS_TOKEN
+    ) {
       return env.META_SYSTEM_USER_ACCESS_TOKEN;
     }
 
     if (encrypted) {
       try {
         return encryptionService.decrypt(encrypted);
-      } catch {
-        // fall through to system token
+      } catch (error) {
+        logger.error(
+          { err: error },
+          "No se pudo descifrar el token de WhatsApp del tenant; revisa ENCRYPTION_SECRET en AWS"
+        );
       }
     }
     return env.META_SYSTEM_USER_ACCESS_TOKEN ?? "";

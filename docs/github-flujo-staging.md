@@ -17,6 +17,35 @@
      - `force-new-deployment` en ECS `chat-whatsapp-ai-combined`
      - Health check en `https://api.conversai.easycomp.cl/health`
 3. Cuando termines de probar en la semana: `.\scripts\aws-staging-stop.ps1` (apaga Fargate; el ALB sigue).
+4. **Opcional — apagado automático 23:59 (Chile):** `.\scripts\setup-aws-nightly-stop.ps1` (~USD 0/mes).
+
+## Apagado automático nocturno (opcional)
+
+### Opción A — AWS (recomendada, ~USD 0/mes, no depende del PC)
+
+```powershell
+.\scripts\setup-aws-nightly-stop.ps1
+```
+
+Requiere permisos `lambda` + `scheduler` en el usuario IAM. Si falla, adjunta en consola IAM la política `infra/ecs-nightly-stop/iam-user-policy-scheduler.json` al usuario `easycomp-deploy` y vuelve a ejecutar.
+
+### Opción B — Windows (USD 0, PC encendido a las 23:59)
+
+```powershell
+.\scripts\setup-windows-nightly-stop.ps1
+```
+
+| Qué | Detalle |
+|-----|---------|
+| Hora | 23:59 (Chile en AWS; hora local en Windows) |
+| Acción | `desired-count = 0` en ECS |
+| Costo del schedule | USD 0 |
+| Ahorro Fargate | ~USD 0.03/h apagado (~USD 7/mes si apagas 8h/día) |
+| No apaga | ALB (~USD 16/mes), Supabase, Upstash |
+
+Para encender al día siguiente: `.\scripts\aws-staging-start.ps1` (o push a `staging` con deploy).
+
+Quitar: `.\scripts\remove-aws-nightly-stop.ps1` o `.\scripts\remove-windows-nightly-stop.ps1`
 
 ## Qué NO va por GitHub (manual)
 

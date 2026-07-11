@@ -1,6 +1,6 @@
 import { MessageIngestService } from "../conversations/message-ingest.service.js";
 import { responsePipelineService } from "../runtime/response-pipeline.service.js";
-import { WhatsAppClient } from "../channel/whatsapp.client.js";
+import { WhatsAppClient, WhatsAppSendError } from "../channel/whatsapp.client.js";
 import { TenantResolverService } from "../tenants/tenant-resolver.service.js";
 import type { NormalizedIncomingMessage } from "../../types/whatsapp.js";
 
@@ -27,6 +27,17 @@ export class MessageRouterService {
       channelPhoneNumber: resolved.channel.phoneNumber,
       message
     });
+
+    if (ingested.isDuplicate) {
+      await this.retryPendingBotDelivery({
+        conversationId: ingested.conversation.id,
+        inboundCreatedAt: ingested.message.createdAt,
+        customerPhone: ingested.customer.phoneNumber,
+        phoneNumberId: resolved.channel.phoneNumberId,
+        accessToken: resolved.accessToken
+      });
+      return;
+    }
 
     const result = await responsePipelineService.process({
       tenant: {
@@ -63,16 +74,67 @@ export class MessageRouterService {
       }
     });
 
-    if (result.reply) {
-      const wamid = await this.whatsAppClient.sendTextMessage({
+    if (result.reply && result.outboundMessageId) {
+      await this.sendBotReply({
         phoneNumberId: resolved.channel.phoneNumberId,
         accessToken: resolved.accessToken,
         to: ingested.customer.phoneNumber,
-        text: result.reply
+        text: result.reply,
+        outboundMessageId: result.outboundMessageId
       });
-      if (wamid && result.outboundMessageId) {
-        await this.messageIngestService.setMessageExternalId(result.outboundMessageId, wamid);
-      }
     }
   }
+
+  private async retryPendingBotDelivery(input: {
+    conversationId: string;
+    inboundCreatedAt: Date;
+    customerPhone: string;
+    phoneNumberId: string;
+    accessToken: string;
+  }) {
+    const pending = await this.messageIngestService.findPendingBotOutbound({
+      conversationId: input.conversationId,
+      after: input.inboundCreatedAt
+    });
+    if (!pending?.contentText) {
+      return;
+    }
+
+    await this.messageIngestService.markDeliveryPending(pending.id);
+
+    await this.sendBotReply({
+      phoneNumberId: input.phoneNumberId,
+      accessToken: input.accessToken,
+      to: input.customerPhone,
+      text: pending.contentText,
+      outboundMessageId: pending.id
+    });
+  }
+
+  private async sendBotReply(input: {
+    phoneNumberId: string;
+    accessToken: string;
+    to: string;
+    text: string;
+    outboundMessageId: string;
+  }) {
+    try {
+      const wamid = await this.whatsAppClient.sendTextMessage({
+        phoneNumberId: input.phoneNumberId,
+        accessToken: input.accessToken,
+        to: input.to,
+        text: input.text
+      });
+      if (wamid) {
+        await this.messageIngestService.setMessageExternalId(input.outboundMessageId, wamid);
+      }
+    } catch (error) {
+      await this.messageIngestService.markDeliveryFailed(input.outboundMessageId);
+      throw error;
+    }
+  }
+}
+
+export function isNonRetryableWhatsAppError(err: unknown): err is WhatsAppSendError {
+  return err instanceof WhatsAppSendError && !err.isRetryable;
 }

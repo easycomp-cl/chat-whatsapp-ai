@@ -49,6 +49,12 @@ enum MessageDirection {
   OUTBOUND
 }
 
+enum WhatsappDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
 enum ContentType {
   TEXT
   IMAGE
@@ -295,7 +301,8 @@ model Message {
   receiverPhone     String
   contentText       String
   contentType         ContentType      @default(TEXT)
-  externalId        String?
+  externalId              String?
+  whatsappDeliveryStatus  WhatsappDeliveryStatus?
   aiGenerated       Boolean          @default(false)
   replyToMessageId  String?
   quotedText        String?
