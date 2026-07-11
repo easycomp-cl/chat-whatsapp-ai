@@ -1,0 +1,14 @@
+node_modules
+dist
+.env
+.env.local
+.env.production
+.env.old
+coverage
+.turbo
+.DS_Store
+*.log
+storage/
+.cursor/
+__pycache__/
+*.pyc

@@ -1,0 +1,85 @@
+name: Deploy staging (AWS ECS)
+
+on:
+  push:
+    branches: [staging]
+    paths:
+      - ".github/workflows/deploy-staging.yml"
+      - "Dockerfile"
+      - ".dockerignore"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "prisma/**"
+      - "src/**"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: sa-east-1
+  AWS_ACCOUNT_ID: "024848463506"
+  ECR_REPOSITORY: chat-whatsapp-ai
+  ECS_CLUSTER: easycomp-staging
+  ECS_SERVICE: chat-whatsapp-ai-combined
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest
+            ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+
+      - name: Deploy to ECS (desired-count=1 + new task)
+        run: |
+          aws ecs update-service \
+            --cluster "${{ env.ECS_CLUSTER }}" \
+            --service "${{ env.ECS_SERVICE }}" \
+            --desired-count 1 \
+            --force-new-deployment \
+            --region "${{ env.AWS_REGION }}" \
+            --output json \
+            --query "service.{status:status,desired:desiredCount,running:runningCount}"
+
+      - name: Wait for service stability
+        run: |
+          aws ecs wait services-stable \
+            --cluster "${{ env.ECS_CLUSTER }}" \
+            --services "${{ env.ECS_SERVICE }}" \
+            --region "${{ env.AWS_REGION }}"
+
+      - name: Health check
+        run: |
+          for i in 1 2 3 4 5 6; do
+            if curl -fsS --max-time 15 https://api.conversai.easycomp.cl/health; then
+              exit 0
+            fi
+            echo "Reintento $i/6..."
+            sleep 15
+          done
+          echo "Health check fallo"
+          exit 1

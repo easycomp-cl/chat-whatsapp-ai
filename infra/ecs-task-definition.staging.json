@@ -1,0 +1,46 @@
+{
+  "family": "chat-whatsapp-ai-staging",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::024848463506:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::024848463506:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "api",
+      "image": "024848463506.dkr.ecr.sa-east-1.amazonaws.com/chat-whatsapp-ai:latest",
+      "essential": true,
+      "portMappings": [{ "containerPort": 3000, "protocol": "tcp" }],
+      "command": ["npm", "start"],
+      "secrets": [
+        { "name": "NODE_ENV", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:NODE_ENV::" },
+        { "name": "PORT", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:PORT::" },
+        { "name": "DATABASE_URL", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:DATABASE_URL::" },
+        { "name": "REDIS_URL", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:REDIS_URL::" },
+        { "name": "WHATSAPP_VERIFY_TOKEN", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:WHATSAPP_VERIFY_TOKEN::" },
+        { "name": "WHATSAPP_GRAPH_VERSION", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:WHATSAPP_GRAPH_VERSION::" },
+        { "name": "META_APP_SECRET", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:META_APP_SECRET::" },
+        { "name": "META_SYSTEM_USER_ACCESS_TOKEN", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:META_SYSTEM_USER_ACCESS_TOKEN::" },
+        { "name": "OPENAI_API_KEY", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:OPENAI_API_KEY::" },
+        { "name": "OPENAI_MODEL", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:OPENAI_MODEL::" },
+        { "name": "OPENAI_EMBEDDING_MODEL", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:OPENAI_EMBEDDING_MODEL::" },
+        { "name": "ENCRYPTION_SECRET", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:ENCRYPTION_SECRET::" },
+        { "name": "INTERNAL_API_KEY", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:INTERNAL_API_KEY::" },
+        { "name": "FAQ_SIMILARITY_THRESHOLD", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:FAQ_SIMILARITY_THRESHOLD::" },
+        { "name": "STORAGE_PATH", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:STORAGE_PATH::" },
+        { "name": "SHOPIFY_API_VERSION", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:SHOPIFY_API_VERSION::" },
+        { "name": "SKIP_WEBHOOK_SIGNATURE", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:SKIP_WEBHOOK_SIGNATURE::" },
+        { "name": "DEFAULT_TIMEZONE", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:DEFAULT_TIMEZONE::" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/chat-whatsapp-ai",
+          "awslogs-region": "sa-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}

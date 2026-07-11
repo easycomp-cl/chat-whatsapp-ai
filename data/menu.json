@@ -1,0 +1,30 @@
+[
+    {
+      "nombre": "Hamburguesa Clásica",
+      "precio": 4500
+    },
+    {
+        "nombre": "Completo Italiano",
+        "precio": 500
+      },
+    {
+      "nombre": "Papas Fritas",
+      "precio": 2000
+    },
+    {
+      "nombre": "Coca-Cola 350ml",
+      "precio": 1500
+    },
+    {
+      "nombre": "Fanta 350ml",
+      "precio": 1500
+    },
+    {
+      "nombre": "Sprite 350ml",
+      "precio": 1500
+    },
+    {
+        "nombre": "Jugo de Naranja 350ml",
+        "precio": 2000
+    }
+  ]

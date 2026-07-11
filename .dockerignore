@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+.env
+.env.*
+storage
+venv
+__pycache__
+*.log
+.git
+.DS_Store

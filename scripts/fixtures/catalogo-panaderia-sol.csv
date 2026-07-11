@@ -1,0 +1,20 @@
+nombre,descripcion,precio,categoria,sku,tags
+Hallulla x6,Pack de 6 hallullas frescas del día,1800,Panes,PAN-HALL-6,pan;clasico
+Marraqueta 1 kg,Marraqueta tradicional por kilo,2200,Panes,PAN-MARR-1K,pan;clasico
+Pan amasado unidad,Pan amasado artesanal horneado diario,1200,Panes,PAN-AMA-1,pan;artesanal
+Pan de molde integral,Pan de molde integral 500 g,2500,Panes,PAN-MOL-INT,pan;integral
+Ciabatta,Pan ciabatta italiano unidad,1500,Panes,PAN-CIA-1,pan;artesanal
+Baguette,Barra tipo baguette crujiente,1400,Panes,PAN-BAG-1,pan;artesanal
+Torta tres leches porción,Porción individual de torta tres leches casera,3500,Pasteles,PAS-T3L-POR,torta;dulce
+Torta tres leches entera,Torta tres leches 8-10 porciones,28000,Pasteles,PAS-T3L-ENT,torta;dulce;encargo
+Queque de naranja,Queque húmedo de naranja porción,2800,Pasteles,PAS-QUE-NAR,queque;dulce
+Brownie de chocolate,Brownie con nueces porción,3200,Pasteles,PAS-BRO-CHO,brownie;chocolate
+Berlín relleno,Donut berlín con crema pastelera,1800,Dulces,DUL-BER-1,berlin;dulce
+Croissant mantequilla,Croissant de mantequilla horneado del día,2200,Dulces,DUL-CRO-1,croissant;dulce
+Alfajor casero,Alfajor con manjar y coco,1500,Dulces,DUL-ALF-1,alfajor;dulce
+Calzones rotos,Calzones rotos con azúcar flor,1200,Dulces,DUL-CAL-1,calzone;dulce
+Empanada de pino,Empanada horneada de pino tradicional,1800,Salados,SAL-EMP-PIN,empanada;salado
+Empanada de queso,Empanada horneada de queso,1700,Salados,SAL-EMP-QUE,empanada;salado;vegetariano
+Empanada napolitana,Empanada con tomate queso y jamón,1900,Salados,SAL-EMP-NAP,empanada;salado
+Pan de huevo,Pan de huevo con chancaca unidad,1100,Dulces,DUL-PH-1,pan de huevo;fiestas patrias
+Kuchen de manzana,Porción de kuchen de manzana casero,3000,Pasteles,PAS-KUC-MAN,kuchen;temporada

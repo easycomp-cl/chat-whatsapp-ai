@@ -1,0 +1,526 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TenantStatus {
+  ACTIVE
+  PAUSED
+}
+
+enum ChannelType {
+  WHATSAPP_BUSINESS
+}
+
+enum ChannelStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ConversationStatus {
+  OPEN
+  PENDING
+  CLOSED
+}
+
+enum ConversationMode {
+  BOT
+  HUMAN
+}
+
+enum ConversationChannel {
+  WHATSAPP
+}
+
+enum SenderType {
+  CUSTOMER
+  BOT
+  HUMAN
+  SYSTEM
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum ContentType {
+  TEXT
+  IMAGE
+  AUDIO
+  DOCUMENT
+  INTERACTIVE
+}
+
+enum KnowledgeSourceType {
+  PDF
+  DOCX
+  TXT
+  MANUAL
+  URL
+}
+
+enum KnowledgeDocumentStatus {
+  PENDING
+  INDEXING
+  INDEXED
+  ERROR
+}
+
+enum CatalogProductSource {
+  MANUAL
+  CSV
+  JSON
+  SHOPIFY
+}
+
+enum IntegrationProvider {
+  SHOPIFY
+}
+
+enum ChatImportJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ChatSenderRole {
+  CUSTOMER
+  BUSINESS
+  UNKNOWN
+}
+
+enum FaqSuggestionStatus {
+  PENDING_REVIEW
+  APPROVED
+  EDITED
+  REJECTED
+  ARCHIVED
+}
+
+enum ToneAnalysisStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+model Tenant {
+  id                  String           @id @default(cuid())
+  name                String
+  slug                String           @unique
+  businessType        String           @default("general")
+  status              TenantStatus     @default(ACTIVE)
+  botGlobalEnabled    Boolean          @default(true)
+  defaultAiModel      String           @default("gpt-4o-mini")
+  confidenceThreshold Float            @default(0.70)
+  timezone            String           @default("America/Santiago")
+  metadataJson        Json?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  channels            TenantChannel[]
+  admins              TenantAdmin[]
+  config              TenantConfig?
+  faqs                TenantFaq[]
+  documents           TenantDocument[]
+  knowledgeChunks     KnowledgeChunk[]
+  catalogProducts     TenantCatalogProduct[]
+  deliveryRegions     TenantDeliveryRegion[]
+  integrations        TenantIntegration[]
+  customers           Customer[]
+  conversations       Conversation[]
+  messages            Message[]
+  messageReactions    MessageReaction[]
+  usageEvents         UsageEvent[]
+  auditLogs           AuditLog[]
+  chatImportJobs      ChatImportJob[]
+  importedChatMessages ImportedChatMessage[]
+  detectedFaqSuggestions DetectedFaqSuggestion[]
+  toneAnalysisResults ToneAnalysisResult[]
+}
+
+model TenantChannel {
+  id                    String        @id @default(cuid())
+  tenantId              String
+  channelType           ChannelType   @default(WHATSAPP_BUSINESS)
+  phoneNumber           String
+  phoneNumberId         String        @unique
+  wabaId                String?
+  accessTokenEncrypted  String?
+  verifyToken           String?
+  coexistenceEnabled    Boolean       @default(false)
+  status                ChannelStatus @default(ACTIVE)
+  isActive              Boolean       @default(true)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  tenant                Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, channelType])
+}
+
+model TenantAdmin {
+  id              String   @id @default(cuid())
+  tenantId        String
+  name            String
+  phoneNumber     String
+  role            String   @default("agent")
+  notifyOnHandoff Boolean  @default(true)
+  isPrimary       Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignedConversations Conversation[]
+
+  @@unique([tenantId, phoneNumber])
+}
+
+model TenantConfig {
+  id                String   @id @default(cuid())
+  tenantId          String   @unique
+  botName           String
+  botTone           String
+  greetingMessage   String
+  fallbackMessage   String
+  handoffMessage    String
+  outOfHoursMessage String
+  configJson        Json     @default("{}")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model TenantFaq {
+  id                String   @id @default(cuid())
+  tenantId          String
+  question          String
+  answer            String
+  category          String?
+  priority          Int      @default(0)
+  alternatePhrases  Json     @default("[]")
+  keywords          Json     @default("[]")
+  searchText        String?
+  questionEmbedding Unsupported("vector(1536)")?
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model TenantDocument {
+  id          String                  @id @default(cuid())
+  tenantId    String
+  title       String
+  sourceType  KnowledgeSourceType     @default(MANUAL)
+  fileUrl     String?
+  storagePath String?
+  mimeType    String?
+  fileSize    Int?
+  rawText     String?
+  status      KnowledgeDocumentStatus @default(PENDING)
+  indexError  String?
+  indexedAt   DateTime?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  tenant      Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chunks      KnowledgeChunk[]
+}
+
+model KnowledgeChunk {
+  id         String                      @id @default(cuid())
+  tenantId   String
+  documentId String
+  chunkText  String
+  embedding  Unsupported("vector(1536)")?
+  metadata   Json                        @default("{}")
+  createdAt  DateTime                    @default(now())
+  tenant     Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  document   TenantDocument              @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([documentId])
+}
+
+model Customer {
+  id            String         @id @default(cuid())
+  tenantId      String
+  phoneNumber   String
+  name          String?
+  firstSeenAt   DateTime       @default(now())
+  lastSeenAt    DateTime       @default(now())
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+  messages      Message[]
+
+  @@unique([tenantId, phoneNumber])
+}
+
+model Conversation {
+  id                 String              @id @default(cuid())
+  tenantId           String
+  customerId         String
+  channel            ConversationChannel @default(WHATSAPP)
+  channelPhoneNumber String
+  status             ConversationStatus  @default(OPEN)
+  mode               ConversationMode    @default(BOT)
+  assignedAdminId    String?
+  handoffReason      String?
+  botResumeAt        DateTime?
+  lastMessageAt      DateTime            @default(now())
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  tenant             Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer           Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  messages           Message[]
+  messageReactions   MessageReaction[]
+  assignedAdmin      TenantAdmin?        @relation(fields: [assignedAdminId], references: [id], onDelete: SetNull)
+  usageEvents        UsageEvent[]
+}
+
+model Message {
+  id                String           @id @default(cuid())
+  conversationId    String
+  tenantId          String
+  customerId        String?
+  direction         MessageDirection @default(INBOUND)
+  senderType        SenderType
+  senderPhone       String
+  receiverPhone     String
+  contentText       String
+  contentType         ContentType      @default(TEXT)
+  externalId        String?
+  aiGenerated       Boolean          @default(false)
+  replyToMessageId  String?
+  quotedText        String?
+  quotedSenderType  SenderType?
+  replyToExternalId String?
+  rawPayloadJson    Json?
+  createdAt         DateTime         @default(now())
+  conversation      Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer          Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  replyTo           Message?         @relation("MessageReplies", fields: [replyToMessageId], references: [id], onDelete: SetNull)
+  replies           Message[]        @relation("MessageReplies")
+  reactions         MessageReaction[]
+
+  @@index([replyToMessageId])
+  @@index([externalId])
+}
+
+model MessageReaction {
+  id             String     @id @default(cuid())
+  tenantId       String
+  conversationId String
+  messageId      String
+  emoji          String
+  senderType     SenderType
+  senderPhone    String?
+  externalId     String?    @unique
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  tenant         Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message        Message    @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, senderPhone])
+  @@index([messageId])
+  @@index([conversationId])
+}
+
+model UsageEvent {
+  id             String   @id @default(cuid())
+  tenantId       String
+  conversationId String?
+  eventType      String
+  tokensInput    Int?
+  tokensOutput   Int?
+  estimatedCost  Float?
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, eventType])
+  @@index([tenantId, createdAt])
+}
+
+model TenantCatalogProduct {
+  id          String               @id @default(cuid())
+  tenantId    String
+  externalId  String?
+  sku         String?
+  name        String
+  description String?
+  price       Float?
+  currency    String               @default("CLP")
+  category    String?
+  tags        Json                 @default("[]")
+  metadata    Json                 @default("{}")
+  source      CatalogProductSource @default(MANUAL)
+  isActive    Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, isActive])
+  @@unique([tenantId, externalId])
+}
+
+model TenantDeliveryRegion {
+  id           String                 @id @default(cuid())
+  tenantId     String
+  name         String
+  courier      String
+  defaultPrice Int
+  isActive     Boolean                @default(true)
+  sortOrder    Int                    @default(0)
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  tenant       Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  communes     TenantDeliveryCommune[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, isActive])
+}
+
+model TenantDeliveryCommune {
+  id            String               @id @default(cuid())
+  regionId      String
+  name          String
+  priceOverride Int?
+  isActive      Boolean              @default(true)
+  sortOrder     Int                  @default(0)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  region        TenantDeliveryRegion @relation(fields: [regionId], references: [id], onDelete: Cascade)
+
+  @@unique([regionId, name])
+  @@index([regionId, isActive])
+}
+
+model TenantIntegration {
+  id                   String              @id @default(cuid())
+  tenantId             String
+  provider             IntegrationProvider
+  shopDomain           String?
+  credentialsEncrypted String?
+  configJson           Json                @default("{}")
+  lastSyncAt           DateTime?
+  isActive             Boolean             @default(true)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  tenant               Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, provider])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  tenantId    String
+  actorType   String
+  actorRef    String?
+  eventType   String
+  payloadJson Json     @default("{}")
+  createdAt   DateTime @default(now())
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model ChatImportJob {
+  id                    String              @id @default(cuid())
+  tenantId              String
+  uploadedBy            String?
+  originalFilename      String
+  fileUrl               String
+  storagePath           String?
+  businessSenderName    String?
+  status                ChatImportJobStatus @default(PENDING)
+  totalMessages         Int                 @default(0)
+  customerMessagesCount Int                 @default(0)
+  businessMessagesCount Int                 @default(0)
+  detectedFaqCount      Int                 @default(0)
+  detectedToneSummary   String?
+  errorMessage          String?
+  metadata              Json                @default("{}")
+  createdAt             DateTime            @default(now())
+  startedAt             DateTime?
+  completedAt           DateTime?
+  tenant                Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  messages              ImportedChatMessage[]
+  faqSuggestions        DetectedFaqSuggestion[]
+  toneAnalysis          ToneAnalysisResult[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+}
+
+model ImportedChatMessage {
+  id                 String         @id @default(cuid())
+  tenantId           String
+  importJobId        String
+  messageAt          DateTime?
+  senderLabel        String?
+  senderRole         ChatSenderRole @default(UNKNOWN)
+  content            String?
+  contentAnonymized  String?
+  isQuestion         Boolean        @default(false)
+  isBusinessResponse Boolean        @default(false)
+  detectedIntent     String?
+  metadata           Json           @default("{}")
+  createdAt          DateTime       @default(now())
+  tenant             Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  importJob          ChatImportJob  @relation(fields: [importJobId], references: [id], onDelete: Cascade)
+
+  @@index([importJobId])
+  @@index([tenantId, senderRole])
+}
+
+model DetectedFaqSuggestion {
+  id                 String              @id @default(cuid())
+  tenantId           String
+  importJobId        String?
+  question           String
+  normalizedQuestion String?
+  suggestedAnswer    String?
+  category           String?
+  evidenceCount      Int                 @default(1)
+  confidence         Float?
+  status             FaqSuggestionStatus @default(PENDING_REVIEW)
+  reviewedBy         String?
+  reviewedAt         DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  tenant             Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  importJob          ChatImportJob?      @relation(fields: [importJobId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+}
+
+model ToneAnalysisResult {
+  id                  String             @id @default(cuid())
+  tenantId            String
+  importJobId         String?
+  toneSummary         String
+  communicationStyle  String?
+  commonPhrases       Json               @default("[]")
+  emojiUsage          String?
+  responseLength      String?
+  salesStyle          String?
+  formalityLevel      String?
+  recommendedBotRules Json               @default("{}")
+  confidence          Float?
+  status              ToneAnalysisStatus @default(PENDING_REVIEW)
+  reviewedBy          String?
+  reviewedAt          DateTime?
+  createdAt           DateTime           @default(now())
+  tenant              Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  importJob           ChatImportJob?     @relation(fields: [importJobId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+}
