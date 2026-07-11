@@ -54,6 +54,11 @@ jobs:
             ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest
             ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
 
+      - name: Ensure CloudWatch log group
+        run: |
+          aws logs create-log-group --log-group-name /ecs/chat-whatsapp-ai --region "${{ env.AWS_REGION }}" 2>/dev/null || true
+          aws logs put-retention-policy --log-group-name /ecs/chat-whatsapp-ai --retention-in-days 14 --region "${{ env.AWS_REGION }}" 2>/dev/null || true
+
       - name: Deploy to ECS (desired-count=1 + new task)
         run: |
           aws ecs update-service \
