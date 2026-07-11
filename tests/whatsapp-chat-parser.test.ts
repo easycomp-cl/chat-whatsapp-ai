@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -19,7 +19,7 @@ describe("WhatsappChatParserService", () => {
     expect(parsed[0]?.message).toContain("Hola The Wood Club");
   });
 
-  it("parses real TWD export fixture", () => {
+  it.skipIf(!existsSync(fixturePath))("parses real TWD export fixture", () => {
     const content = readFileSync(fixturePath, "utf8");
     const parsed = whatsappChatParserService.parse(content);
     expect(parsed.length).toBeGreaterThan(20);

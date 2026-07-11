@@ -8,7 +8,7 @@ coverage
 .turbo
 .DS_Store
 *.log
-storage/
+/storage/
 .cursor/
 __pycache__/
 *.pyc
