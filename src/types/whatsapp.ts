@@ -54,11 +54,23 @@ export type NormalizedIncomingRevoke = {
   rawPayload: unknown;
 };
 
+export type NormalizedMessageStatus = {
+  kind: "status";
+  externalMessageId: string;
+  recipientPhone: string;
+  toPhoneNumberId: string;
+  toPhoneDisplay?: string;
+  status: "sent" | "delivered" | "read" | "failed";
+  timestamp: Date;
+  rawPayload: unknown;
+};
+
 export type NormalizedWebhookEvent =
   | NormalizedIncomingMessage
   | NormalizedIncomingReaction
   | NormalizedIncomingEdit
-  | NormalizedIncomingRevoke;
+  | NormalizedIncomingRevoke
+  | NormalizedMessageStatus;
 
 export type OutboundMessage = {
   to: string;

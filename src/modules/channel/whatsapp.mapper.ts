@@ -5,8 +5,11 @@ import type {
   NormalizedIncomingReaction,
   NormalizedIncomingEdit,
   NormalizedIncomingRevoke,
+  NormalizedMessageStatus,
   NormalizedWebhookEvent
 } from "../../types/whatsapp.js";
+
+const META_STATUS_VALUES = new Set(["sent", "delivered", "read", "failed"]);
 
 export function normalizeWebhookEvents(payload: unknown): NormalizedWebhookEvent[] {
   const parsed = whatsappWebhookSchema.parse(payload);
@@ -15,13 +18,37 @@ export function normalizeWebhookEvents(payload: unknown): NormalizedWebhookEvent
   for (const entry of parsed.entry) {
     for (const change of entry.changes) {
       const value = change.value;
+      const toPhoneDisplay = value.metadata?.display_phone_number;
+      const toPhoneNumberId = value.metadata?.phone_number_id ?? "";
+
+      if (value.statuses?.length) {
+        for (const statusRow of value.statuses) {
+          const status = statusRow.status.toLowerCase();
+          if (!META_STATUS_VALUES.has(status)) {
+            continue;
+          }
+
+          const item: NormalizedMessageStatus = {
+            kind: "status",
+            externalMessageId: statusRow.id,
+            recipientPhone: statusRow.recipient_id ?? "",
+            toPhoneNumberId,
+            status: status as NormalizedMessageStatus["status"],
+            timestamp: statusRow.timestamp
+              ? new Date(Number(statusRow.timestamp) * 1000)
+              : new Date(),
+            rawPayload: payload
+          };
+          if (toPhoneDisplay) item.toPhoneDisplay = toPhoneDisplay;
+          normalized.push(item);
+        }
+      }
+
       if (!value.messages?.length) {
         continue;
       }
 
       const fromName = value.contacts?.[0]?.profile?.name;
-      const toPhoneDisplay = value.metadata?.display_phone_number;
-      const toPhoneNumberId = value.metadata?.phone_number_id ?? "";
 
       for (const message of value.messages) {
         const timestamp = message.timestamp

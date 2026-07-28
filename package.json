@@ -9,6 +9,7 @@
     "dev:workers": "tsx watch src/workers.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
+    "start:prod": "prisma migrate deploy && node dist/server.js",
     "start:api": "node dist/api.js",
     "start:workers": "node dist/workers.js",
     "prisma:generate": "prisma generate",
@@ -22,6 +23,7 @@
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",
+    "prisma": "^5.20.0",
     "adm-zip": "^0.5.17",
     "bullmq": "^5.78.0",
     "dotenv": "^16.4.5",
@@ -43,7 +45,6 @@
     "@types/multer": "^2.1.0",
     "@types/node": "^22.7.4",
     "@types/pdf-parse": "^1.1.5",
-    "prisma": "^5.20.0",
     "tsx": "^4.19.1",
     "typescript": "^5.6.2",
     "vitest": "^4.1.4"

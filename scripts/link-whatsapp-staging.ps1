@@ -1,21 +1,25 @@
 # Vincula cuenta WhatsApp de Meta al negocio en staging (AWS).
 # El token se guarda cifrado en Supabase. NO requiere redeploy ECS.
 #
-# Uso:
+# Uso (token desde .env.production):
+#   .\scripts\link-whatsapp-staging.ps1 `
+#     -PhoneNumberId "123456789" `
+#     -PhoneNumber "+56946867544"
+#
+# Uso explícito:
 #   .\scripts\link-whatsapp-staging.ps1 `
 #     -PhoneNumberId "123456789" `
 #     -PhoneNumber "+56912345678" `
 #     -AccessToken "EAAxxxxx"
 #
 # Si no tienes business_id, el script crea el negocio "EasyComp Piloto".
+# TENANT_ID en .env.production se usa como BusinessId si está definido.
 
 param(
   [Parameter(Mandatory = $true)]
   [string]$PhoneNumberId,
-  [Parameter(Mandatory = $true)]
-  [string]$PhoneNumber,
-  [Parameter(Mandatory = $true)]
-  [string]$AccessToken,
+  [string]$PhoneNumber = "+56946867544",
+  [string]$AccessToken = "",
   [string]$BusinessId = "",
   [string]$ApiBase = "https://api.conversai.easycomp.cl",
   [string]$EnvFile = ".env.production"
@@ -40,6 +44,18 @@ Get-Content $envPath | ForEach-Object {
 
 $apiKey = $vars["INTERNAL_API_KEY"]
 if (-not $apiKey) { throw "Falta INTERNAL_API_KEY en $EnvFile" }
+
+if (-not $AccessToken) {
+  $AccessToken = $vars["META_SYSTEM_USER_ACCESS_TOKEN"]
+  if (-not $AccessToken) {
+    throw "Pasa -AccessToken o define META_SYSTEM_USER_ACCESS_TOKEN en $EnvFile"
+  }
+}
+
+if (-not $BusinessId -and $vars["TENANT_ID"]) {
+  $BusinessId = $vars["TENANT_ID"]
+  Write-Host "Usando TENANT_ID del env: $BusinessId"
+}
 
 $headers = @{
   "X-API-Key"        = $apiKey

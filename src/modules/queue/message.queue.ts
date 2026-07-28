@@ -27,5 +27,10 @@ export function getMessageQueue(): Queue<MessageJobData> {
 
 export async function enqueueWebhookEvent(event: NormalizedWebhookEvent) {
   const queue = getMessageQueue();
-  await queue.add("process", { event }, { jobId: event.externalMessageId ?? undefined });
+  const jobId =
+    event.kind === "status"
+      ? `status:${event.externalMessageId}:${event.status}:${event.timestamp.getTime()}`
+      : event.externalMessageId;
+
+  await queue.add("process", { event }, { jobId });
 }

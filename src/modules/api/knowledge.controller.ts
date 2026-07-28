@@ -50,7 +50,7 @@ function mapKnowledgeDocumentListItem(doc: {
   storagePath: string | null;
   mimeType: string | null;
   fileSize: number | null;
-  rawText: string | null;
+  rawText?: string | null;
   status: string;
   indexError: string | null;
   indexedAt: Date | null;
@@ -62,8 +62,10 @@ function mapKnowledgeDocumentListItem(doc: {
     : (doc.fileSize ?? 0);
   const preview = doc.rawText?.trim().slice(0, 240) ?? null;
 
+  const { rawText: _rawText, ...rest } = doc;
+
   return {
-    ...doc,
+    ...rest,
     content_length: contentLength,
     content_preview: preview,
     has_content: contentLength > 0
@@ -89,9 +91,24 @@ export async function listKnowledgeDocuments(req: Request, res: Response) {
   const businessId = paramId(req, "businessId");
   const docs = await prisma.tenantDocument.findMany({
     where: { tenantId: businessId },
+    select: {
+      id: true,
+      tenantId: true,
+      title: true,
+      sourceType: true,
+      fileUrl: true,
+      storagePath: true,
+      mimeType: true,
+      fileSize: true,
+      status: true,
+      indexError: true,
+      indexedAt: true,
+      createdAt: true,
+      updatedAt: true
+    },
     orderBy: { createdAt: "desc" }
   });
-  res.json(docs.map(mapKnowledgeDocumentListItem));
+  res.json(docs.map((doc) => mapKnowledgeDocumentListItem(doc)));
 }
 
 export async function getKnowledgeDocument(req: Request, res: Response) {

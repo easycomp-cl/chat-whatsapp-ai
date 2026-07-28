@@ -50,6 +50,7 @@ import {
   uploadKnowledgeDocument
 } from "./knowledge.controller.js";
 import {
+  getMetricsDashboard,
   getMetricsQuestions,
   getMetricsSummary,
   getMetricsUsage
@@ -144,6 +145,7 @@ export function createApiRouter() {
   router.post("/businesses/:businessId/delivery/reindex", rebuildDeliveryIndex);
 
   router.get("/businesses/:businessId/metrics/summary", getMetricsSummary);
+  router.get("/businesses/:businessId/metrics/dashboard", getMetricsDashboard);
   router.get("/businesses/:businessId/metrics/questions", getMetricsQuestions);
   router.get("/businesses/:businessId/metrics/usage", getMetricsUsage);
 

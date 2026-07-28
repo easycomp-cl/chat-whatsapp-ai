@@ -23,6 +23,7 @@ export async function receiveWebhook(req: Request, res: Response) {
   const events = normalizeWebhookEvents(req.body);
   const messages = events.filter((event) => event.kind === "message").length;
   const reactions = events.filter((event) => event.kind === "reaction").length;
+  const statuses = events.filter((event) => event.kind === "status").length;
 
   try {
     for (const event of events) {
@@ -33,6 +34,7 @@ export async function receiveWebhook(req: Request, res: Response) {
       received: true,
       messages,
       reactions,
+      statuses,
       queued: true
     });
   } catch (error) {
@@ -41,6 +43,7 @@ export async function receiveWebhook(req: Request, res: Response) {
       received: true,
       messages,
       reactions,
+      statuses,
       warning: "Error encolando evento. Revisa los logs."
     });
   }

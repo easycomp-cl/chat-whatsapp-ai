@@ -95,7 +95,17 @@ export const whatsappWebhookSchema = z.object({
                 })
               )
               .optional(),
-            messages: z.array(inboundMessageSchema).optional()
+            messages: z.array(inboundMessageSchema).optional(),
+            statuses: z
+              .array(
+                z.object({
+                  id: z.string(),
+                  status: z.string(),
+                  timestamp: z.string().optional(),
+                  recipient_id: z.string().optional()
+                })
+              )
+              .optional()
           })
         })
       )

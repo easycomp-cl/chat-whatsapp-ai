@@ -156,4 +156,36 @@ describe("normalizeWebhookEvents", () => {
       originalMessageId: "wamid.original"
     });
   });
+
+  it("normalizes outbound delivery status webhooks", () => {
+    const events = normalizeWebhookEvents({
+      entry: [
+        {
+          changes: [
+            {
+              value: {
+                metadata: { phone_number_id: "123" },
+                statuses: [
+                  {
+                    id: "wamid.outbound",
+                    status: "delivered",
+                    timestamp: "1717888800",
+                    recipient_id: "56911111111"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      kind: "status",
+      externalMessageId: "wamid.outbound",
+      status: "delivered",
+      recipientPhone: "56911111111"
+    });
+  });
 });

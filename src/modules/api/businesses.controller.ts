@@ -8,6 +8,7 @@ import { buildFaqSearchText } from "../faq/faq-search-text.js";
 import { mergeKnowledgeConfig, parseTenantKnowledgeConfig } from "../tenants/tenant-knowledge-config.js";
 import { paramId } from "../../utils/params.js";
 import { requireTenantFaq } from "../../utils/tenant-resource.js";
+import { setNoStore, setPrivateHttpCache } from "../../lib/http-cache.js";
 
 const createBusinessSchema = z.object({
   name: z.string().min(1),
@@ -112,7 +113,26 @@ export async function getBusiness(req: Request, res: Response) {
   const id = paramId(req, "id");
   const tenant = await prisma.tenant.findUnique({
     where: { id },
-    include: { config: true, channels: true, admins: { where: { isActive: true } } }
+    include: {
+      config: true,
+      channels: {
+        select: {
+          id: true,
+          tenantId: true,
+          channelType: true,
+          phoneNumber: true,
+          phoneNumberId: true,
+          wabaId: true,
+          verifyToken: true,
+          coexistenceEnabled: true,
+          status: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true
+        }
+      },
+      admins: { where: { isActive: true } }
+    }
   });
   if (!tenant) {
     res.status(404).json({ error: "Business not found" });
@@ -262,8 +282,23 @@ export async function listFaqs(req: Request, res: Response) {
   const businessId = paramId(req, "businessId");
   const faqs = await prisma.tenantFaq.findMany({
     where: { tenantId: businessId },
+    select: {
+      id: true,
+      tenantId: true,
+      question: true,
+      answer: true,
+      category: true,
+      priority: true,
+      alternatePhrases: true,
+      keywords: true,
+      searchText: true,
+      isActive: true,
+      createdAt: true,
+      updatedAt: true
+    },
     orderBy: [{ priority: "desc" }, { createdAt: "desc" }]
   });
+  setPrivateHttpCache(res, 60, 120);
   res.json(faqs);
 }
 
@@ -299,6 +334,7 @@ export async function createFaq(req: Request, res: Response) {
     }
   });
   await faqEngine.indexFaqEmbedding(faq.id);
+  setNoStore(res);
   res.status(201).json(faq);
 }
 
@@ -332,6 +368,7 @@ export async function patchFaq(req: Request, res: Response) {
     }
   });
   await faqEngine.indexFaqEmbedding(faq.id);
+  setNoStore(res);
   res.json(faq);
 }
 
@@ -343,5 +380,6 @@ export async function deleteFaq(req: Request, res: Response) {
     return;
   }
   await prisma.tenantFaq.delete({ where: { id } });
+  setNoStore(res);
   res.status(204).send();
 }

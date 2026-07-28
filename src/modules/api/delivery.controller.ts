@@ -47,6 +47,7 @@ export async function listDeliveryRegions(req: Request, res: Response) {
 }
 
 export async function listChileRegions(_req: Request, res: Response) {
+  res.set("Cache-Control", "public, max-age=86400, immutable");
   res.json(CHILE_REGION_NAMES);
 }
 

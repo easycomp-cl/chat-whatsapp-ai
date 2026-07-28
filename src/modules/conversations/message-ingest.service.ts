@@ -8,6 +8,7 @@ import {
 import { prisma } from "../../lib/prisma.js";
 import type { NormalizedIncomingMessage } from "../../types/whatsapp.js";
 import { normalizePhone } from "../../utils/phone.js";
+import { shouldUpgradeWhatsappDeliveryStatus } from "../../utils/whatsapp-delivery-status.js";
 import { usageEventsService, USAGE_EVENT_TYPES } from "../metrics/usage-events.service.js";
 import { resolveReplyContext } from "./resolve-reply-context.js";
 
@@ -315,6 +316,37 @@ export class MessageIngestService {
     });
 
     return { updated: true as const, messageId: target.id };
+  }
+
+  async applyOutboundDeliveryStatus(input: {
+    externalMessageId: string;
+    status: WhatsappDeliveryStatus;
+  }) {
+    const message = await prisma.message.findFirst({
+      where: {
+        externalId: input.externalMessageId,
+        direction: MessageDirection.OUTBOUND
+      },
+      select: {
+        id: true,
+        whatsappDeliveryStatus: true
+      }
+    });
+
+    if (!message) {
+      return { updated: false as const, reason: "not_found" as const };
+    }
+
+    if (!shouldUpgradeWhatsappDeliveryStatus(message.whatsappDeliveryStatus, input.status)) {
+      return { updated: false as const, reason: "stale" as const };
+    }
+
+    await prisma.message.update({
+      where: { id: message.id },
+      data: { whatsappDeliveryStatus: input.status }
+    });
+
+    return { updated: true as const, messageId: message.id };
   }
 
   async ingestHumanMessage(input: {

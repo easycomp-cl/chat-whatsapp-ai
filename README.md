@@ -93,6 +93,7 @@ Todas requieren header `X-API-Key`.
 | PATCH | `/businesses/:id/settings` |
 | POST | `/businesses/:id/whatsapp-accounts` |
 | POST | `/businesses/:id/agents` |
+| GET | `/businesses/:businessId/conversations/inbox` |
 | GET | `/businesses/:businessId/conversations` |
 | GET | `/conversations/:id` |
 | PATCH | `/conversations/:id/mode` |
@@ -120,3 +121,11 @@ npm test
 
 - `GET /webhooks/whatsapp` — verificación Meta
 - `POST /webhooks/whatsapp` — recibe mensajes, encola y responde 200 OK inmediato
+
+## Documentación pendiente (Meta / producción)
+
+Roadmap para token permanente y conexión self-service de WhatsApp Business por empresa:
+
+- [docs/pending/README.md](docs/pending/README.md) — índice
+- [docs/pending/01-token-meta-permanente.md](docs/pending/01-token-meta-permanente.md) — **paso 1** (hacer primero)
+- [docs/pending/02-embedded-signup-whatsapp-business.md](docs/pending/02-embedded-signup-whatsapp-business.md) — paso 2 (futuro)
