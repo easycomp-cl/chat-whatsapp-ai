@@ -11,6 +11,7 @@ type EditWhatsAppTextParams = {
   phoneNumberId: string;
   accessToken: string;
   externalMessageId: string;
+  to: string;
   text: string;
 };
 
@@ -89,6 +90,8 @@ export class WhatsAppClient {
 
     const payload = {
       messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: params.to,
       type: "text",
       text: {
         body: params.text
@@ -161,7 +164,7 @@ export class WhatsAppClient {
       isTokenExpired
         ? "No se pudo enviar el mensaje porque el token de WhatsApp expiró."
         : actionType === "edit"
-          ? "No se pudo editar el mensaje en WhatsApp."
+          ? (details.error?.message ?? "No se pudo editar el mensaje en WhatsApp.")
           : `No se pudo enviar el mensaje de WhatsApp. Status ${response.status}.`,
       response.status,
       body,

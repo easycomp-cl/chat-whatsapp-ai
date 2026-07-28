@@ -16,6 +16,7 @@ import {
 import {
   getConversation,
   listConversations,
+  listConversationsInbox,
   patchConversationMode
 } from "./conversations.controller.js";
 import { sendConversationMessage, resendOutboundMessage, editOutboundMessage } from "./messages.controller.js";
@@ -88,6 +89,7 @@ export function createApiRouter() {
   router.post("/businesses/:id/agents", createAgent);
   router.patch("/agents/:id", patchAgent);
 
+  router.get("/businesses/:businessId/conversations/inbox", listConversationsInbox);
   router.get("/businesses/:businessId/conversations", listConversations);
   router.get("/conversations/:id", getConversation);
   router.patch("/conversations/:id/mode", patchConversationMode);

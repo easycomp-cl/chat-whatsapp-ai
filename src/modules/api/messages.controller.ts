@@ -319,11 +319,17 @@ export async function editOutboundMessage(req: Request, res: Response) {
       phoneNumberId: channel.phoneNumberId,
       accessToken,
       externalMessageId: message.externalId,
+      to: message.conversation.customer.phoneNumber,
       text: body.text.trim()
     });
   } catch (error) {
     if (error instanceof WhatsAppSendError) {
-      res.status(error.isTokenExpired ? 503 : 502).json({
+      const httpStatus = error.isTokenExpired
+        ? 503
+        : error.status >= 400 && error.status < 500
+          ? 400
+          : 502;
+      res.status(httpStatus).json({
         error: error.message,
         action: error.action,
         token_expired: error.isTokenExpired

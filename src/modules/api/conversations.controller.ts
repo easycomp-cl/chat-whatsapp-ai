@@ -2,9 +2,30 @@ import type { Request, Response } from "express";
 import { z } from "zod";
 import { ConversationMode } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
+import { setPrivateHttpCache } from "../../lib/http-cache.js";
 import { handoffService } from "../runtime/handoff.service.js";
 import { usageEventsService, USAGE_EVENT_TYPES } from "../metrics/usage-events.service.js";
 import { paramId } from "../../utils/params.js";
+import { conversationsInboxService } from "../conversations/conversations-inbox.service.js";
+
+const inboxQuerySchema = z.object({
+  assigned_admin_id: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional()
+});
+
+export async function listConversationsInbox(req: Request, res: Response) {
+  const businessId = paramId(req, "businessId");
+  const query = inboxQuerySchema.parse(req.query);
+
+  const conversations = await conversationsInboxService.listInbox({
+    tenantId: businessId,
+    assignedAdminId: query.assigned_admin_id ?? null,
+    ...(query.limit !== undefined ? { limit: query.limit } : {})
+  });
+
+  setPrivateHttpCache(res, 5, 10);
+  res.json({ conversations });
+}
 
 export async function listConversations(req: Request, res: Response) {
   const businessId = paramId(req, "businessId");
