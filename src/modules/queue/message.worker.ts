@@ -5,6 +5,7 @@ import {
   MessageRouterService
 } from "../router/message-router.service.js";
 import { ReactionRouterService } from "../router/reaction-router.service.js";
+import { MessageUpdateRouterService } from "../router/message-update-router.service.js";
 import { bullmqConnection, bullmqWorkerOptions } from "./bullmq.config.js";
 import { MESSAGE_QUEUE_NAME, type MessageJobData } from "./message.queue.js";
 
@@ -17,6 +18,7 @@ export function startMessageWorker() {
 
   const router = new MessageRouterService();
   const reactionRouter = new ReactionRouterService();
+  const messageUpdateRouter = new MessageUpdateRouterService();
 
   worker = new Worker<MessageJobData>(
     MESSAGE_QUEUE_NAME,
@@ -25,6 +27,14 @@ export function startMessageWorker() {
         const { event } = job.data;
         if (event.kind === "reaction") {
           await reactionRouter.route(event);
+          return;
+        }
+        if (event.kind === "edit") {
+          await messageUpdateRouter.routeEdit(event);
+          return;
+        }
+        if (event.kind === "revoke") {
+          await messageUpdateRouter.routeRevoke(event);
           return;
         }
         await router.route(event);

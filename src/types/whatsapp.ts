@@ -29,7 +29,36 @@ export type NormalizedIncomingReaction = {
   rawPayload: unknown;
 };
 
-export type NormalizedWebhookEvent = NormalizedIncomingMessage | NormalizedIncomingReaction;
+export type NormalizedIncomingEdit = {
+  kind: "edit";
+  externalMessageId: string;
+  fromPhone: string;
+  fromName?: string;
+  toPhoneNumberId: string;
+  toPhoneDisplay?: string;
+  originalMessageId: string;
+  text: string;
+  timestamp: Date;
+  rawPayload: unknown;
+};
+
+export type NormalizedIncomingRevoke = {
+  kind: "revoke";
+  externalMessageId: string;
+  fromPhone: string;
+  fromName?: string;
+  toPhoneNumberId: string;
+  toPhoneDisplay?: string;
+  originalMessageId: string;
+  timestamp: Date;
+  rawPayload: unknown;
+};
+
+export type NormalizedWebhookEvent =
+  | NormalizedIncomingMessage
+  | NormalizedIncomingReaction
+  | NormalizedIncomingEdit
+  | NormalizedIncomingRevoke;
 
 export type OutboundMessage = {
   to: string;

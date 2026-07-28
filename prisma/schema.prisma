@@ -216,6 +216,8 @@ model TenantFaq {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
 }
 
 model TenantDocument {
@@ -235,6 +237,8 @@ model TenantDocument {
   updatedAt   DateTime                @updatedAt
   tenant      Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   chunks      KnowledgeChunk[]
+
+  @@index([tenantId])
 }
 
 model KnowledgeChunk {
@@ -279,6 +283,7 @@ model Conversation {
   assignedAdminId    String?
   handoffReason      String?
   botResumeAt        DateTime?
+  chatClearedAt      DateTime?
   lastMessageAt      DateTime            @default(now())
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
@@ -288,6 +293,8 @@ model Conversation {
   messageReactions   MessageReaction[]
   assignedAdmin      TenantAdmin?        @relation(fields: [assignedAdminId], references: [id], onDelete: SetNull)
   usageEvents        UsageEvent[]
+
+  @@index([tenantId, lastMessageAt(sort: Desc)])
 }
 
 model Message {
@@ -301,6 +308,9 @@ model Message {
   receiverPhone     String
   contentText       String
   contentType         ContentType      @default(TEXT)
+  contentTextSnapshot String?
+  customerEditedAt    DateTime?
+  customerRevokedAt   DateTime?
   externalId              String?
   whatsappDeliveryStatus  WhatsappDeliveryStatus?
   aiGenerated       Boolean          @default(false)
@@ -319,6 +329,8 @@ model Message {
 
   @@index([replyToMessageId])
   @@index([externalId])
+  @@index([conversationId, createdAt])
+  @@index([tenantId, direction, senderType, createdAt])
 }
 
 model MessageReaction {

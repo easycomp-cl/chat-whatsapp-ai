@@ -11,6 +11,8 @@ import { normalizePhone } from "../../utils/phone.js";
 import { usageEventsService, USAGE_EVENT_TYPES } from "../metrics/usage-events.service.js";
 import { resolveReplyContext } from "./resolve-reply-context.js";
 
+export const CUSTOMER_REVOKED_MESSAGE_TEXT = "Mensaje eliminado por el usuario";
+
 export class MessageIngestService {
   async ingestCustomerMessage(input: {
     tenantId: string;
@@ -203,6 +205,116 @@ export class MessageIngestService {
       where: { id: messageId },
       data: { contentText: text }
     });
+  }
+
+  async applyCustomerMessageEdit(input: {
+    tenantId: string;
+    originalMessageId: string;
+    text: string;
+    editedAt?: Date;
+  }) {
+    const target = await prisma.message.findFirst({
+      where: { externalId: input.originalMessageId },
+      select: {
+        id: true,
+        tenantId: true,
+        direction: true,
+        senderType: true,
+        contentText: true,
+        contentTextSnapshot: true,
+        customerRevokedAt: true
+      }
+    });
+
+    if (!target) {
+      return { updated: false as const, reason: "not_found" as const };
+    }
+
+    if (target.tenantId !== input.tenantId) {
+      return { updated: false as const, reason: "tenant_mismatch" as const };
+    }
+
+    if (
+      target.direction !== MessageDirection.INBOUND ||
+      target.senderType !== SenderType.CUSTOMER
+    ) {
+      return { updated: false as const, reason: "not_customer_inbound" as const };
+    }
+
+    if (target.customerRevokedAt) {
+      return { updated: false as const, reason: "already_revoked" as const };
+    }
+
+    if (target.contentText.trim() === input.text.trim()) {
+      return { updated: false as const, reason: "unchanged" as const, messageId: target.id };
+    }
+
+    const editedAt = input.editedAt ?? new Date();
+
+    await prisma.message.update({
+      where: { id: target.id },
+      data: {
+        contentText: input.text.trim(),
+        contentTextSnapshot: target.contentTextSnapshot ?? target.contentText,
+        customerEditedAt: editedAt
+      }
+    });
+
+    return { updated: true as const, messageId: target.id };
+  }
+
+  async applyCustomerMessageRevoke(input: {
+    tenantId: string;
+    originalMessageId: string;
+    revokedAt?: Date;
+  }) {
+    const target = await prisma.message.findFirst({
+      where: { externalId: input.originalMessageId },
+      select: {
+        id: true,
+        tenantId: true,
+        direction: true,
+        senderType: true,
+        contentText: true,
+        customerRevokedAt: true
+      }
+    });
+
+    if (!target) {
+      return { updated: false as const, reason: "not_found" as const };
+    }
+
+    if (target.tenantId !== input.tenantId) {
+      return { updated: false as const, reason: "tenant_mismatch" as const };
+    }
+
+    if (
+      target.direction !== MessageDirection.INBOUND ||
+      target.senderType !== SenderType.CUSTOMER
+    ) {
+      return { updated: false as const, reason: "not_customer_inbound" as const };
+    }
+
+    if (target.customerRevokedAt) {
+      return { updated: false as const, reason: "unchanged" as const, messageId: target.id };
+    }
+
+    const revokedAt = input.revokedAt ?? new Date();
+    const snapshot =
+      target.contentText === CUSTOMER_REVOKED_MESSAGE_TEXT
+        ? null
+        : target.contentText;
+
+    await prisma.message.update({
+      where: { id: target.id },
+      data: {
+        contentTextSnapshot: snapshot,
+        contentText: CUSTOMER_REVOKED_MESSAGE_TEXT,
+        customerRevokedAt: revokedAt
+      }
+    });
+
+    return { updated: true as const, messageId: target.id };
   }
 
   async ingestHumanMessage(input: {

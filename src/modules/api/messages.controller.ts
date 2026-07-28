@@ -309,44 +309,12 @@ export async function editOutboundMessage(req: Request, res: Response) {
     return;
   }
 
-  const tenantResolver = new TenantResolverService();
-  const accessToken = tenantResolver.resolveAccessToken(channel.accessTokenEncrypted);
-  const whatsAppClient = new WhatsAppClient();
-  const messageIngest = new MessageIngestService();
-
-  try {
-    await whatsAppClient.editTextMessage({
-      phoneNumberId: channel.phoneNumberId,
-      accessToken,
-      externalMessageId: message.externalId,
-      to: message.conversation.customer.phoneNumber,
-      text: body.text.trim()
-    });
-  } catch (error) {
-    if (error instanceof WhatsAppSendError) {
-      const httpStatus = error.isTokenExpired
-        ? 503
-        : error.status >= 400 && error.status < 500
-          ? 400
-          : 502;
-      res.status(httpStatus).json({
-        error: error.message,
-        action: error.action,
-        token_expired: error.isTokenExpired
-      });
-      return;
-    }
-    throw error;
-  }
-
-  const updated = await messageIngest.updateMessageText(messageId, body.text.trim());
-
-  res.status(200).json({
-    id: updated.id,
-    conversation_id: updated.conversationId,
-    external_id: updated.externalId,
-    whatsapp_delivery_status: updated.whatsappDeliveryStatus,
-    content_text: updated.contentText,
-    created_at: updated.createdAt
+  // WhatsApp Cloud API no expone edición de mensajes salientes vía Graph API.
+  // Un POST con bloque `edit` devuelve 200 pero crea un mensaje nuevo (nuevo wamid).
+  res.status(501).json({
+    error:
+      "WhatsApp Cloud API no permite editar mensajes enviados por la API. Editar aquí enviaría un mensaje duplicado al cliente.",
+    action:
+      "Elimina el mensaje en el chat de WhatsApp del cliente o envía una corrección como mensaje nuevo desde el dashboard."
   });
 }

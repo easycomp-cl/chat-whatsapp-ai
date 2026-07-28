@@ -36,7 +36,41 @@ const reactionMessageSchema = z.object({
   })
 });
 
-const inboundMessageSchema = z.union([reactionMessageSchema, textMessageSchema]);
+export const editedInnerMessageSchema = z.object({
+  type: z.string(),
+  text: z.object({ body: z.string() }).optional(),
+  image: z.object({ caption: z.string().optional() }).optional(),
+  video: z.object({ caption: z.string().optional() }).optional(),
+  document: z.object({ caption: z.string().optional() }).optional()
+});
+
+const editMessageSchema = z.object({
+  id: z.string(),
+  from: z.string(),
+  timestamp: z.string().optional(),
+  type: z.literal("edit"),
+  edit: z.object({
+    original_message_id: z.string(),
+    message: editedInnerMessageSchema
+  })
+});
+
+const revokeMessageSchema = z.object({
+  id: z.string(),
+  from: z.string(),
+  timestamp: z.string().optional(),
+  type: z.literal("revoke"),
+  revoke: z.object({
+    original_message_id: z.string()
+  })
+});
+
+const inboundMessageSchema = z.union([
+  reactionMessageSchema,
+  editMessageSchema,
+  revokeMessageSchema,
+  textMessageSchema
+]);
 
 export const whatsappWebhookSchema = z.object({
   entry: z.array(

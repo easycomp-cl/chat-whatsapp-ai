@@ -1,7 +1,10 @@
 import { whatsappWebhookSchema } from "./whatsapp.schemas.js";
+import { extractEditedMessageText } from "./extract-edited-message-text.js";
 import type {
   NormalizedIncomingMessage,
   NormalizedIncomingReaction,
+  NormalizedIncomingEdit,
+  NormalizedIncomingRevoke,
   NormalizedWebhookEvent
 } from "../../types/whatsapp.js";
 
@@ -39,6 +42,44 @@ export function normalizeWebhookEvents(payload: unknown): NormalizedWebhookEvent
           if (fromName) reaction.fromName = fromName;
           if (toPhoneDisplay) reaction.toPhoneDisplay = toPhoneDisplay;
           normalized.push(reaction);
+          continue;
+        }
+
+        if (message.type === "edit" && "edit" in message) {
+          const text = extractEditedMessageText(message.edit.message);
+          if (!text) {
+            continue;
+          }
+
+          const edit: NormalizedIncomingEdit = {
+            kind: "edit",
+            externalMessageId: message.id,
+            fromPhone: message.from,
+            toPhoneNumberId,
+            originalMessageId: message.edit.original_message_id,
+            text,
+            timestamp,
+            rawPayload: payload
+          };
+          if (fromName) edit.fromName = fromName;
+          if (toPhoneDisplay) edit.toPhoneDisplay = toPhoneDisplay;
+          normalized.push(edit);
+          continue;
+        }
+
+        if (message.type === "revoke" && "revoke" in message) {
+          const revoke: NormalizedIncomingRevoke = {
+            kind: "revoke",
+            externalMessageId: message.id,
+            fromPhone: message.from,
+            toPhoneNumberId,
+            originalMessageId: message.revoke.original_message_id,
+            timestamp,
+            rawPayload: payload
+          };
+          if (fromName) revoke.fromName = fromName;
+          if (toPhoneDisplay) revoke.toPhoneDisplay = toPhoneDisplay;
+          normalized.push(revoke);
           continue;
         }
 

@@ -87,4 +87,73 @@ describe("normalizeWebhookEvents", () => {
 
     expect(remove[0]).toMatchObject({ kind: "reaction", emoji: "" });
   });
+
+  it("normalizes customer message edit", () => {
+    const events = normalizeWebhookEvents({
+      entry: [
+        {
+          changes: [
+            {
+              value: {
+                metadata: { phone_number_id: "123" },
+                contacts: [{ profile: { name: "Juan" } }],
+                messages: [
+                  {
+                    id: "wamid.edit-event",
+                    from: "56911111111",
+                    type: "edit",
+                    edit: {
+                      original_message_id: "wamid.original",
+                      message: {
+                        type: "text",
+                        text: { body: "Texto corregido por el usuario" }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      kind: "edit",
+      externalMessageId: "wamid.edit-event",
+      originalMessageId: "wamid.original",
+      text: "Texto corregido por el usuario",
+      fromName: "Juan"
+    });
+  });
+
+  it("normalizes customer message revoke", () => {
+    const events = normalizeWebhookEvents({
+      entry: [
+        {
+          changes: [
+            {
+              value: {
+                metadata: { phone_number_id: "123" },
+                messages: [
+                  {
+                    id: "wamid.revoke-event",
+                    from: "56911111111",
+                    type: "revoke",
+                    revoke: { original_message_id: "wamid.original" }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(events[0]).toMatchObject({
+      kind: "revoke",
+      originalMessageId: "wamid.original"
+    });
+  });
 });
