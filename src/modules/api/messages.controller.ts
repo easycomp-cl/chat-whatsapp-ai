@@ -1,5 +1,10 @@
 import type { Request, Response } from "express";
-import { MessageDirection } from "@prisma/client";
+import {
+  ContentType,
+  MessageDirection,
+  SenderType,
+  WhatsappDeliveryStatus
+} from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { paramId } from "../../utils/params.js";
@@ -13,6 +18,12 @@ const sendMessageSchema = z.object({
   agent_phone: z.string().optional(),
   reply_to_message_id: z.string().optional()
 });
+
+const editMessageSchema = z.object({
+  text: z.string().min(1)
+});
+
+const WHATSAPP_EDIT_WINDOW_MS = 15 * 60 * 1000;
 
 async function resolveChannelForConversation(conversationId: string) {
   const conversation = await prisma.conversation.findUnique({
@@ -223,5 +234,113 @@ export async function resendOutboundMessage(req: Request, res: Response) {
     whatsapp_delivery_status: updated!.whatsappDeliveryStatus,
     content_text: updated!.contentText,
     created_at: updated!.createdAt
+  });
+}
+
+export async function editOutboundMessage(req: Request, res: Response) {
+  const messageId = paramId(req, "id");
+  const body = editMessageSchema.parse(req.body);
+
+  const message = await prisma.message.findUnique({
+    where: { id: messageId },
+    include: {
+      conversation: {
+        include: {
+          customer: true,
+          tenant: {
+            include: {
+              channels: {
+                where: { isActive: true, status: "ACTIVE" },
+                take: 1
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (!message) {
+    res.status(404).json({ error: "Message not found" });
+    return;
+  }
+
+  if (message.direction !== MessageDirection.OUTBOUND) {
+    res.status(400).json({ error: "Solo se pueden editar mensajes salientes" });
+    return;
+  }
+
+  if (message.senderType !== SenderType.HUMAN || message.aiGenerated) {
+    res.status(400).json({ error: "Solo se pueden editar mensajes enviados por un asesor humano" });
+    return;
+  }
+
+  if (message.contentType !== ContentType.TEXT) {
+    res.status(400).json({ error: "Solo se pueden editar mensajes de texto" });
+    return;
+  }
+
+  if (!message.externalId) {
+    res.status(400).json({ error: "Este mensaje aún no fue entregado a WhatsApp" });
+    return;
+  }
+
+  if (message.whatsappDeliveryStatus !== WhatsappDeliveryStatus.SENT) {
+    res.status(400).json({ error: "Solo se pueden editar mensajes entregados a WhatsApp" });
+    return;
+  }
+
+  const ageMs = Date.now() - message.createdAt.getTime();
+  if (ageMs > WHATSAPP_EDIT_WINDOW_MS) {
+    res.status(400).json({
+      error: "El plazo para editar este mensaje en WhatsApp ya expiró (15 minutos)"
+    });
+    return;
+  }
+
+  if (message.contentText.trim() === body.text.trim()) {
+    res.status(400).json({ error: "El mensaje no tiene cambios" });
+    return;
+  }
+
+  const channel = message.conversation.tenant.channels[0];
+  if (!channel) {
+    res.status(400).json({ error: "No active WhatsApp channel for this business" });
+    return;
+  }
+
+  const tenantResolver = new TenantResolverService();
+  const accessToken = tenantResolver.resolveAccessToken(channel.accessTokenEncrypted);
+  const whatsAppClient = new WhatsAppClient();
+  const messageIngest = new MessageIngestService();
+
+  try {
+    await whatsAppClient.editTextMessage({
+      phoneNumberId: channel.phoneNumberId,
+      accessToken,
+      externalMessageId: message.externalId,
+      text: body.text.trim()
+    });
+  } catch (error) {
+    if (error instanceof WhatsAppSendError) {
+      res.status(error.isTokenExpired ? 503 : 502).json({
+        error: error.message,
+        action: error.action,
+        token_expired: error.isTokenExpired
+      });
+      return;
+    }
+    throw error;
+  }
+
+  const updated = await messageIngest.updateMessageText(messageId, body.text.trim());
+
+  res.status(200).json({
+    id: updated.id,
+    conversation_id: updated.conversationId,
+    external_id: updated.externalId,
+    whatsapp_delivery_status: updated.whatsappDeliveryStatus,
+    content_text: updated.contentText,
+    created_at: updated.createdAt
   });
 }

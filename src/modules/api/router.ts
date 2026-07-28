@@ -18,7 +18,7 @@ import {
   listConversations,
   patchConversationMode
 } from "./conversations.controller.js";
-import { sendConversationMessage, resendOutboundMessage } from "./messages.controller.js";
+import { sendConversationMessage, resendOutboundMessage, editOutboundMessage } from "./messages.controller.js";
 import {
   connectShopify,
   getShopifyIntegration,
@@ -93,6 +93,7 @@ export function createApiRouter() {
   router.patch("/conversations/:id/mode", patchConversationMode);
   router.post("/conversations/:id/messages", sendConversationMessage);
   router.post("/messages/:id/resend", resendOutboundMessage);
+  router.patch("/messages/:id", editOutboundMessage);
 
   router.get("/businesses/:businessId/faqs", listFaqs);
   router.post("/businesses/:businessId/faqs", createFaq);

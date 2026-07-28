@@ -198,6 +198,13 @@ export class MessageIngestService {
     });
   }
 
+  async updateMessageText(messageId: string, text: string) {
+    return prisma.message.update({
+      where: { id: messageId },
+      data: { contentText: text }
+    });
+  }
+
   async ingestHumanMessage(input: {
     tenantId: string;
     conversationId: string;
