@@ -310,15 +310,7 @@ export async function patchCustomerProfile(input: {
       ...asRecord(existing.profileMetadata),
       ...asRecord(input.patch.profile_metadata)
     };
-    if (
-      shouldOverwriteField({
-        existing: existing.profileMetadata,
-        incoming: merged,
-        profileUpdatedBy: updatedBy
-      })
-    ) {
-      data.profileMetadata = merged as Prisma.InputJsonValue;
-    }
+    data.profileMetadata = merged as Prisma.InputJsonValue;
   }
 
   if (Object.keys(data).length === 0) {
