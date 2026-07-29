@@ -23,9 +23,10 @@ import {
   buildGreetingStyleHint,
   parseToneGreetingConfig,
   parseToneGreetings,
-  pickGreetingForWarmth,
-  resolveCustomerWarmth
+  pickGreetingForWarmth
 } from "./greeting-runtime.service.js";
+import { resolveCustomerWarmthForMessage } from "../customers/customer-returning.service.js";
+import { resolveCustomerDisplayName } from "../../utils/customer-display-name.js";
 
 export type PipelineInput = {
   tenant: {
@@ -52,6 +53,7 @@ export type PipelineInput = {
     id: string;
     phoneNumber: string;
     name?: string | null;
+    displayAlias?: string | null;
   };
   incomingText: string;
   channel: {
@@ -94,7 +96,7 @@ export class ResponsePipelineService {
         tenantName: input.tenant.name,
         conversationId: input.conversation.id,
         customerPhone: input.customer.phoneNumber,
-        customerName: input.customer.name ?? null,
+        customerName: resolveCustomerDisplayName(input.customer),
         messageText: input.incomingText,
         handoffReason: preHandoff,
         handoffMessage: input.tenant.config.handoffMessage,
@@ -113,17 +115,11 @@ export class ResponsePipelineService {
         : {};
     const toneGreetings = parseToneGreetings(configJson);
     const greetingConfig = parseToneGreetingConfig(configJson);
-    const priorInboundCount = await prisma.message.count({
-      where: {
-        tenantId: input.tenant.id,
-        customerId: input.customer.id,
-        direction: "INBOUND"
-      }
+    const customerWarmth = await resolveCustomerWarmthForMessage({
+      customerId: input.customer.id,
+      tenantId: input.tenant.id,
+      tenantConfigJson: configJson
     });
-    const customerWarmth = resolveCustomerWarmth(
-      Math.max(0, priorInboundCount - 1),
-      greetingConfig
-    );
     const toneGreeting = pickGreetingForWarmth(
       toneGreetings,
       customerWarmth,
@@ -175,7 +171,7 @@ export class ResponsePipelineService {
         tenantName: input.tenant.name,
         conversationId: input.conversation.id,
         customerPhone: input.customer.phoneNumber,
-        customerName: input.customer.name ?? null,
+        customerName: resolveCustomerDisplayName(input.customer),
         messageText: input.incomingText,
         handoffReason: "low_rag_confidence" satisfies HandoffReason,
         handoffMessage: input.tenant.config.handoffMessage,
@@ -218,7 +214,7 @@ export class ResponsePipelineService {
         tenantName: input.tenant.name,
         conversationId: input.conversation.id,
         customerPhone: input.customer.phoneNumber,
-        customerName: input.customer.name ?? null,
+        customerName: resolveCustomerDisplayName(input.customer),
         messageText: input.incomingText,
         handoffReason: "ai_uncertain",
         handoffMessage: input.tenant.config.handoffMessage,

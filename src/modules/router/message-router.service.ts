@@ -65,7 +65,8 @@ export class MessageRouterService {
       customer: {
         id: ingested.customer.id,
         phoneNumber: ingested.customer.phoneNumber,
-        name: ingested.customer.name
+        name: ingested.customer.name,
+        displayAlias: ingested.customer.displayAlias
       },
       incomingText: message.text,
       channel: {

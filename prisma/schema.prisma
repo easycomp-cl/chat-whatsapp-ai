@@ -57,6 +57,18 @@ enum WhatsappDeliveryStatus {
   FAILED
 }
 
+enum CustomerInvoiceType {
+  RECEIPT
+  INVOICE
+  NONE
+}
+
+enum BillingSameAsDelivery {
+  NONE
+  DELIVERY_1
+  DELIVERY_2
+}
+
 enum ContentType {
   TEXT
   IMAGE
@@ -176,7 +188,7 @@ model TenantAdmin {
   tenantId        String
   name            String
   phoneNumber     String
-  role            String   @default("agent")
+  role            String   @default("collaborator")
   notifyOnHandoff Boolean  @default(true)
   isPrimary       Boolean  @default(false)
   isActive        Boolean  @default(true)
@@ -259,17 +271,42 @@ model KnowledgeChunk {
 }
 
 model Customer {
-  id            String         @id @default(cuid())
-  tenantId      String
-  phoneNumber   String
-  name          String?
-  firstSeenAt   DateTime       @default(now())
-  lastSeenAt    DateTime       @default(now())
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  conversations Conversation[]
-  messages      Message[]
+  id                    String                 @id @default(cuid())
+  tenantId              String
+  phoneNumber           String
+  name                  String?
+  displayAlias          String?
+  email                 String?
+  taxId                 String?
+  invoiceType           CustomerInvoiceType?
+  companyName           String?
+  businessActivity      String?
+  delivery1Line1        String?
+  delivery1Line2        String?
+  delivery1Commune      String?
+  delivery1Region       String?
+  delivery1Notes        String?
+  delivery2Line1        String?
+  delivery2Line2        String?
+  delivery2Commune      String?
+  delivery2Region       String?
+  delivery2Notes        String?
+  billingLine1          String?
+  billingLine2          String?
+  billingCommune        String?
+  billingRegion         String?
+  billingNotes          String?
+  billingSameAsDelivery BillingSameAsDelivery?
+  profileMetadata       Json?
+  profileUpdatedAt      DateTime?
+  profileUpdatedBy      String?
+  firstSeenAt           DateTime               @default(now())
+  lastSeenAt            DateTime               @default(now())
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversations         Conversation[]
+  messages              Message[]
 
   @@unique([tenantId, phoneNumber])
 }

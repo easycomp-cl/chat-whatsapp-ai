@@ -1,4 +1,5 @@
 import { prisma } from "../../lib/prisma.js";
+import { resolveCustomerDisplayName } from "../../utils/customer-display-name.js";
 
 type InboxRow = {
   id: string;
@@ -17,6 +18,7 @@ type InboxRow = {
   updated_at: Date;
   customer_phone_number: string;
   customer_name: string | null;
+  customer_display_alias: string | null;
   customer_first_seen_at: Date | null;
   customer_last_seen_at: Date | null;
   last_message_preview: string | null;
@@ -42,6 +44,8 @@ export type InboxConversation = {
     business_id: string;
     phone_number: string;
     name: string | null;
+    display_alias: string | null;
+    display_name: string;
     first_seen_at: string | null;
     last_seen_at: string | null;
   } | null;
@@ -73,6 +77,12 @@ function mapRow(row: InboxRow): InboxConversation {
       business_id: row.business_id,
       phone_number: row.customer_phone_number,
       name: row.customer_name,
+      display_alias: row.customer_display_alias,
+      display_name: resolveCustomerDisplayName({
+        displayAlias: row.customer_display_alias,
+        name: row.customer_name,
+        phoneNumber: row.customer_phone_number
+      }),
       first_seen_at: toIso(row.customer_first_seen_at),
       last_seen_at: toIso(row.customer_last_seen_at)
     },
@@ -111,6 +121,7 @@ export class ConversationsInboxService {
         c."updatedAt" AS updated_at,
         cu."phoneNumber" AS customer_phone_number,
         cu.name AS customer_name,
+        cu."displayAlias" AS customer_display_alias,
         cu."firstSeenAt" AS customer_first_seen_at,
         cu."lastSeenAt" AS customer_last_seen_at,
         preview."contentText" AS last_message_preview
