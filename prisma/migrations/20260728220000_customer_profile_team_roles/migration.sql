@@ -42,8 +42,10 @@ ALTER TABLE "Customer"
 UPDATE "TenantAdmin" SET role = 'collaborator' WHERE role = 'agent';
 ALTER TABLE "TenantAdmin" ALTER COLUMN role SET DEFAULT 'collaborator';
 
--- Vista Supabase (misma BD que usa el dashboard)
-CREATE OR REPLACE VIEW public.customers
+-- Vista Supabase (misma BD que usa el dashboard).
+-- DROP + CREATE: CREATE OR REPLACE no puede insertar columnas en el medio.
+DROP VIEW IF EXISTS public.customers;
+CREATE VIEW public.customers
 WITH (security_invoker = true) AS
 SELECT
   id,

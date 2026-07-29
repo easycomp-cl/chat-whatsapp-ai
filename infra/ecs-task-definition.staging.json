@@ -12,7 +12,7 @@
       "image": "024848463506.dkr.ecr.sa-east-1.amazonaws.com/chat-whatsapp-ai:latest",
       "essential": true,
       "portMappings": [{ "containerPort": 3000, "protocol": "tcp" }],
-      "command": ["npm", "start"],
+      "command": ["npm", "run", "start:prod"],
       "secrets": [
         { "name": "NODE_ENV", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:NODE_ENV::" },
         { "name": "PORT", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:PORT::" },
