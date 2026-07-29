@@ -2,6 +2,9 @@ import { MessageIngestService } from "../conversations/message-ingest.service.js
 import { responsePipelineService } from "../runtime/response-pipeline.service.js";
 import { WhatsAppClient, WhatsAppSendError } from "../channel/whatsapp.client.js";
 import { TenantResolverService } from "../tenants/tenant-resolver.service.js";
+import { flowOrchestratorService } from "../flows/flow-orchestrator.service.js";
+import { ContentType } from "@prisma/client";
+import { messageMediaService } from "../conversations/message-media.service.js";
 import type { NormalizedIncomingMessage } from "../../types/whatsapp.js";
 
 export class MessageRouterService {
@@ -25,7 +28,10 @@ export class MessageRouterService {
     const ingested = await this.messageIngestService.ingestCustomerMessage({
       tenantId: resolved.tenant.id,
       channelPhoneNumber: resolved.channel.phoneNumber,
-      message
+      message,
+      ...(message.media
+        ? { contentType: message.media.type === "image" ? ContentType.IMAGE : ContentType.DOCUMENT }
+        : {})
     });
 
     if (ingested.isDuplicate) {
@@ -36,6 +42,57 @@ export class MessageRouterService {
         phoneNumberId: resolved.channel.phoneNumberId,
         accessToken: resolved.accessToken
       });
+      return;
+    }
+
+    if (message.media) {
+      await messageMediaService.safeIngestInbound({
+        tenantId: resolved.tenant.id,
+        conversationId: ingested.conversation.id,
+        messageId: ingested.message.id,
+        accessToken: resolved.accessToken,
+        media: message.media
+      });
+    }
+
+    const flowResult = await flowOrchestratorService.handleInbound({
+      tenantId: resolved.tenant.id,
+      tenantName: resolved.tenant.name,
+      conversationId: ingested.conversation.id,
+      customerId: ingested.customer.id,
+      customerPhone: ingested.customer.phoneNumber,
+      customerName: ingested.customer.name,
+      messageText: message.text,
+      messageExternalId: message.externalMessageId,
+      channelPhoneNumber: resolved.channel.phoneNumber,
+      channelPhoneNumberId: resolved.channel.phoneNumberId,
+      accessToken: resolved.accessToken,
+      ...(resolved.tenant.config?.handoffMessage
+        ? { handoffMessage: resolved.tenant.config.handoffMessage }
+        : {}),
+      ...(message.media ? { media: message.media } : {})
+    });
+
+    if (flowResult.handled) {
+      for (const reply of flowResult.replies) {
+        const outbound = await this.messageIngestService.ingestBotMessage({
+          tenantId: resolved.tenant.id,
+          conversationId: ingested.conversation.id,
+          customerId: ingested.customer.id,
+          botPhone: resolved.channel.phoneNumber,
+          customerPhone: ingested.customer.phoneNumber,
+          text: reply.text,
+          aiGenerated: reply.aiGenerated ?? false
+        });
+
+        await this.sendBotReply({
+          phoneNumberId: resolved.channel.phoneNumberId,
+          accessToken: resolved.accessToken,
+          to: ingested.customer.phoneNumber,
+          text: reply.text,
+          outboundMessageId: outbound.id
+        });
+      }
       return;
     }
 

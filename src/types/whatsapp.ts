@@ -3,6 +3,14 @@ export type ReplyContext = {
   fromPhone?: string;
 };
 
+export type IncomingMediaAttachment = {
+  type: "image" | "document";
+  mediaId: string;
+  mimeType?: string;
+  filename?: string;
+  caption?: string;
+};
+
 export type NormalizedIncomingMessage = {
   kind: "message";
   externalMessageId: string;
@@ -13,6 +21,7 @@ export type NormalizedIncomingMessage = {
   text: string;
   timestamp: Date;
   replyContext?: ReplyContext;
+  media?: IncomingMediaAttachment;
   rawPayload: unknown;
 };
 

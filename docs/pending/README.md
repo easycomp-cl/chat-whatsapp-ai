@@ -15,7 +15,10 @@ Documentación para implementar en el futuro la conexión self-service de **What
 
 | Documento | Estado |
 |-----------|--------|
-| — | Ninguno en esta carpeta. Ver [../done/](../done/) para lo implementado. |
+| [flows-backend-mvp.md](./flows-backend-mvp.md) | **PR4 listo** — motor + pricing catálogo/delivery |
+| [flows-supabase-storage.md](./flows-supabase-storage.md) | **Pendiente deploy** — bucket `flow-files` |
+| [whatsapp-media-ui.md](../to-front/whatsapp-media-ui.md) | **Backend listo** — imágenes/PDF en chat; spec para UI |
+| [ConversAI_Especificacion_Modulo_Flujos.md](./ConversAI_Especificacion_Modulo_Flujos.md) | Spec completa (referencia) |
 
 ## Contexto rápido
 

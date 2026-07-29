@@ -21,6 +21,11 @@ const envSchema = z.object({
   FAQ_SIMILARITY_THRESHOLD: z.coerce.number().min(0).max(1).default(0.80),
   STORAGE_PATH: z.string().default("./storage"),
   SHOPIFY_API_VERSION: z.string().default("2024-10"),
+  SUPABASE_URL: z.string().url().optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
+  SUPABASE_FLOW_FILES_BUCKET: z.string().default("flow-files"),
+  SUPABASE_CHAT_MEDIA_BUCKET: z.string().default("chat-media"),
+  FLOW_WEBHOOK_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(5),
   SKIP_WEBHOOK_SIGNATURE: z
     .string()
     .optional()

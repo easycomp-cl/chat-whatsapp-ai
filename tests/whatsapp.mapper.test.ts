@@ -157,6 +157,82 @@ describe("normalizeWebhookEvents", () => {
     });
   });
 
+  it("normalizes inbound image and document messages", () => {
+    const imageEvents = normalizeWebhookEvents({
+      entry: [
+        {
+          changes: [
+            {
+              value: {
+                metadata: { phone_number_id: "123" },
+                messages: [
+                  {
+                    id: "wamid.img",
+                    from: "56911111111",
+                    type: "image",
+                    image: {
+                      id: "media-img-1",
+                      mime_type: "image/jpeg",
+                      caption: "Foto del producto"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(imageEvents[0]).toMatchObject({
+      kind: "message",
+      text: "Foto del producto",
+      media: {
+        type: "image",
+        mediaId: "media-img-1",
+        mimeType: "image/jpeg",
+        caption: "Foto del producto"
+      }
+    });
+
+    const docEvents = normalizeWebhookEvents({
+      entry: [
+        {
+          changes: [
+            {
+              value: {
+                metadata: { phone_number_id: "123" },
+                messages: [
+                  {
+                    id: "wamid.doc",
+                    from: "56911111111",
+                    type: "document",
+                    document: {
+                      id: "media-doc-1",
+                      mime_type: "application/pdf",
+                      filename: "factura.pdf"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(docEvents[0]).toMatchObject({
+      kind: "message",
+      text: "factura.pdf",
+      media: {
+        type: "document",
+        mediaId: "media-doc-1",
+        mimeType: "application/pdf",
+        filename: "factura.pdf"
+      }
+    });
+  });
+
   it("normalizes outbound delivery status webhooks", () => {
     const events = normalizeWebhookEvents({
       entry: [

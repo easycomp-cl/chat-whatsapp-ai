@@ -1,4 +1,5 @@
 import {
+  ContentType,
   ConversationMode,
   ConversationStatus,
   MessageDirection,
@@ -19,6 +20,7 @@ export class MessageIngestService {
     tenantId: string;
     channelPhoneNumber: string;
     message: NormalizedIncomingMessage;
+    contentType?: ContentType;
   }) {
     const customer = await prisma.customer.upsert({
       where: {
@@ -97,6 +99,7 @@ export class MessageIngestService {
         senderPhone: normalizePhone(input.message.fromPhone),
         receiverPhone: normalizePhone(input.channelPhoneNumber),
         contentText: input.message.text,
+        contentType: input.contentType ?? ContentType.TEXT,
         externalId: input.message.externalMessageId,
         replyToMessageId: replyFields.replyToMessageId,
         quotedText: replyFields.quotedText,
@@ -357,10 +360,16 @@ export class MessageIngestService {
     businessPhone: string;
     customerPhone: string;
     text: string;
+    contentType?: ContentType;
     externalId?: string | null;
     replyToMessageId?: string | null;
     quotedText?: string | null;
     quotedSenderType?: SenderType | null;
+    mediaStorageBucket?: string | null;
+    mediaStoragePath?: string | null;
+    mediaMimeType?: string | null;
+    mediaFilename?: string | null;
+    mediaFileSize?: number | null;
   }) {
     const message = await prisma.message.create({
       data: {
@@ -372,13 +381,19 @@ export class MessageIngestService {
         senderPhone: normalizePhone(input.agentPhone),
         receiverPhone: normalizePhone(input.customerPhone),
         contentText: input.text,
+        contentType: input.contentType ?? ContentType.TEXT,
         aiGenerated: false,
         externalId: input.externalId ?? null,
         whatsappDeliveryStatus:
           input.externalId != null ? WhatsappDeliveryStatus.SENT : WhatsappDeliveryStatus.PENDING,
         replyToMessageId: input.replyToMessageId ?? null,
         quotedText: input.quotedText ?? null,
-        quotedSenderType: input.quotedSenderType ?? null
+        quotedSenderType: input.quotedSenderType ?? null,
+        mediaStorageBucket: input.mediaStorageBucket ?? null,
+        mediaStoragePath: input.mediaStoragePath ?? null,
+        mediaMimeType: input.mediaMimeType ?? null,
+        mediaFilename: input.mediaFilename ?? null,
+        mediaFileSize: input.mediaFileSize ?? null
       }
     });
 

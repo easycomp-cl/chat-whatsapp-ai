@@ -101,6 +101,7 @@ enum CatalogProductSource {
 
 enum IntegrationProvider {
   SHOPIFY
+  FLOW_WEBHOOK
 }
 
 enum ChatImportJobStatus {
@@ -128,6 +129,77 @@ enum ToneAnalysisStatus {
   PENDING_REVIEW
   APPROVED
   REJECTED
+}
+
+enum FlowDefinitionStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum FlowVersionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum FlowTriggerType {
+  MANUAL
+  AI_INTENT
+  KEYWORD
+  WEBHOOK
+  API
+}
+
+enum FlowRunStatus {
+  RUNNING
+  PAUSED
+  AWAITING_CUSTOMER
+  AWAITING_AGENT_INPUT
+  AWAITING_REVIEW
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+enum FlowReviewStatus {
+  PENDING
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+  EXPIRED
+}
+
+enum FlowTaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum FlowWebhookDeliveryStatus {
+  PENDING
+  DELIVERING
+  DELIVERED
+  FAILED
+  DEAD_LETTER
+}
+
+enum FlowStartedBy {
+  MANUAL
+  TRIGGER_KEYWORD
+  TRIGGER_INTENT
+  TRIGGER_WEBHOOK
+  TRIGGER_API
+  SYSTEM
+}
+
+enum FlowFileSource {
+  WHATSAPP_INBOUND
+  AGENT_UPLOAD
+  FLOW_OUTPUT
 }
 
 model Tenant {
@@ -162,6 +234,15 @@ model Tenant {
   importedChatMessages ImportedChatMessage[]
   detectedFaqSuggestions DetectedFaqSuggestion[]
   toneAnalysisResults ToneAnalysisResult[]
+  flowDefinitions     FlowDefinition[]
+  flowVersions        FlowVersion[]
+  flowTriggers        FlowTrigger[]
+  flowRuns            FlowRun[]
+  flowRunEvents       FlowRunEvent[]
+  flowReviews         FlowReview[]
+  flowTasks           FlowTask[]
+  flowFiles           FlowFile[]
+  flowWebhookDeliveries FlowWebhookDelivery[]
 }
 
 model TenantChannel {
@@ -196,6 +277,11 @@ model TenantAdmin {
   updatedAt       DateTime @updatedAt
   tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   assignedConversations Conversation[]
+  createdFlowDefinitions FlowDefinition[] @relation("FlowDefinitionCreatedBy")
+  updatedFlowDefinitions FlowDefinition[] @relation("FlowDefinitionUpdatedBy")
+  createdFlowVersions    FlowVersion[]    @relation("FlowVersionCreatedBy")
+  startedFlowRuns        FlowRun[]        @relation("FlowRunStartedByAdmin")
+  resolvedFlowReviews    FlowReview[]     @relation("FlowReviewReviewer")
 
   @@unique([tenantId, phoneNumber])
 }
@@ -307,6 +393,8 @@ model Customer {
   tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   conversations         Conversation[]
   messages              Message[]
+  flowRuns              FlowRun[]
+  flowFiles             FlowFile[]
 
   @@unique([tenantId, phoneNumber])
 }
@@ -319,6 +407,7 @@ model Conversation {
   channelPhoneNumber String
   status             ConversationStatus  @default(OPEN)
   mode               ConversationMode    @default(BOT)
+  activeFlowRunId    String?             @unique
   assignedAdminId    String?
   handoffReason      String?
   botResumeAt        DateTime?
@@ -331,6 +420,9 @@ model Conversation {
   messages           Message[]
   messageReactions   MessageReaction[]
   assignedAdmin      TenantAdmin?        @relation(fields: [assignedAdminId], references: [id], onDelete: SetNull)
+  activeFlowRun      FlowRun?            @relation("ConversationActiveFlowRun", fields: [activeFlowRunId], references: [id], onDelete: SetNull)
+  flowRuns           FlowRun[]           @relation("ConversationFlowRuns")
+  flowFiles          FlowFile[]
   usageEvents        UsageEvent[]
 
   @@index([tenantId, lastMessageAt(sort: Desc)])
@@ -358,6 +450,12 @@ model Message {
   quotedSenderType  SenderType?
   replyToExternalId String?
   rawPayloadJson    Json?
+  mediaStorageBucket String?
+  mediaStoragePath   String?
+  mediaMimeType      String?
+  mediaFilename      String?
+  mediaFileSize      Int?
+  whatsappMediaId    String?
   createdAt         DateTime         @default(now())
   conversation      Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -581,4 +679,222 @@ model ToneAnalysisResult {
   importJob           ChatImportJob?     @relation(fields: [importJobId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, status])
+}
+
+model FlowDefinition {
+  id               String               @id @default(cuid())
+  tenantId         String
+  name             String
+  description      String?
+  status           FlowDefinitionStatus @default(DRAFT)
+  currentVersionId String?              @unique
+  createdByAdminId String
+  updatedByAdminId String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  tenant           Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdByAdmin   TenantAdmin          @relation("FlowDefinitionCreatedBy", fields: [createdByAdminId], references: [id], onDelete: Restrict)
+  updatedByAdmin   TenantAdmin?         @relation("FlowDefinitionUpdatedBy", fields: [updatedByAdminId], references: [id], onDelete: SetNull)
+  currentVersion   FlowVersion?         @relation("FlowDefinitionCurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  versions         FlowVersion[]        @relation("FlowDefinitionVersions")
+
+  @@index([tenantId, status])
+  @@index([tenantId, updatedAt(sort: Desc)])
+}
+
+model FlowVersion {
+  id               String            @id @default(cuid())
+  tenantId         String
+  flowDefinitionId String
+  versionNumber    Int
+  graphJson        Json
+  status           FlowVersionStatus @default(DRAFT)
+  publishedAt      DateTime?
+  createdByAdminId String
+  createdAt        DateTime          @default(now())
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  flowDefinition   FlowDefinition    @relation("FlowDefinitionVersions", fields: [flowDefinitionId], references: [id], onDelete: Cascade)
+  createdByAdmin   TenantAdmin       @relation("FlowVersionCreatedBy", fields: [createdByAdminId], references: [id], onDelete: Restrict)
+  asCurrentFor     FlowDefinition?   @relation("FlowDefinitionCurrentVersion")
+  triggers         FlowTrigger[]
+  runs             FlowRun[]
+
+  @@unique([flowDefinitionId, versionNumber])
+  @@index([tenantId, status])
+}
+
+model FlowTrigger {
+  id                String               @id @default(cuid())
+  tenantId          String
+  flowVersionId     String
+  triggerType       FlowTriggerType
+  channel           ConversationChannel?
+  priority          Int                  @default(100)
+  configurationJson Json                 @default("{}")
+  webhookSecretHash String?
+  isEnabled         Boolean              @default(true)
+  createdAt         DateTime             @default(now())
+  tenant            Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  flowVersion       FlowVersion          @relation(fields: [flowVersionId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, triggerType, isEnabled])
+  @@index([flowVersionId])
+}
+
+model FlowRun {
+  id                    String        @id @default(cuid())
+  tenantId              String
+  flowVersionId         String
+  conversationId        String
+  customerId            String
+  currentNodeId         String?
+  status                FlowRunStatus @default(RUNNING)
+  variablesJson         Json          @default("{}")
+  pendingAgentInputJson Json?
+  startedBy             FlowStartedBy
+  startedByAdminId      String?
+  lockVersion           Int           @default(0)
+  startedAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  completedAt           DateTime?
+  tenant                Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  flowVersion           FlowVersion   @relation(fields: [flowVersionId], references: [id], onDelete: Restrict)
+  conversation          Conversation  @relation("ConversationFlowRuns", fields: [conversationId], references: [id], onDelete: Cascade)
+  customer              Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  startedByAdmin        TenantAdmin?  @relation("FlowRunStartedByAdmin", fields: [startedByAdminId], references: [id], onDelete: SetNull)
+  activeForConversation Conversation? @relation("ConversationActiveFlowRun")
+  events                FlowRunEvent[]
+  reviews               FlowReview[]
+  tasks                 FlowTask[]
+  files                 FlowFile[]
+  webhookDeliveries     FlowWebhookDelivery[]
+
+  @@index([tenantId, status])
+  @@index([conversationId, status])
+  @@index([flowVersionId])
+}
+
+model FlowRunEvent {
+  id                String   @id @default(cuid())
+  tenantId          String
+  flowRunId         String
+  nodeId            String?
+  eventType         String
+  payloadJson       Json     @default("{}")
+  platformMessageId String?
+  idempotencyKey    String?  @unique
+  createdAt         DateTime @default(now())
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  flowRun           FlowRun  @relation(fields: [flowRunId], references: [id], onDelete: Cascade)
+
+  @@index([flowRunId, createdAt])
+  @@index([tenantId, eventType])
+  webhookDeliveries FlowWebhookDelivery[]
+}
+
+model FlowReview {
+  id               String           @id @default(cuid())
+  tenantId         String
+  flowRunId        String
+  nodeId           String
+  reviewerAdminId  String?
+  subjectType      String
+  subjectReference String?
+  status           FlowReviewStatus @default(PENDING)
+  resolution       String?
+  notes            String?
+  attempt          Int              @default(1)
+  createdAt        DateTime         @default(now())
+  resolvedAt       DateTime?
+  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  flowRun          FlowRun          @relation(fields: [flowRunId], references: [id], onDelete: Cascade)
+  reviewerAdmin    TenantAdmin?     @relation("FlowReviewReviewer", fields: [reviewerAdminId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
+  @@index([flowRunId, status])
+}
+
+model FlowTask {
+  id           String         @id @default(cuid())
+  tenantId     String
+  flowRunId    String
+  nodeId       String
+  taskType     String
+  status       FlowTaskStatus @default(PENDING)
+  dueAt        DateTime?
+  attemptCount Int            @default(0)
+  payloadJson  Json           @default("{}")
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  flowRun      FlowRun        @relation(fields: [flowRunId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([flowRunId, status])
+}
+
+model FlowFile {
+  id               String         @id @default(cuid())
+  tenantId         String
+  flowRunId        String?
+  conversationId   String?
+  customerId       String?
+  storageBucket    String
+  storagePath      String
+  mimeType         String?
+  fileSize         Int?
+  originalFilename String?
+  source           FlowFileSource
+  createdAt        DateTime       @default(now())
+  tenant           Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  flowRun          FlowRun?       @relation(fields: [flowRunId], references: [id], onDelete: SetNull)
+  conversation     Conversation?  @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  customer         Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, flowRunId])
+  @@index([conversationId])
+  @@unique([storageBucket, storagePath])
+}
+
+model FlowWebhookDelivery {
+  id              String                    @id @default(cuid())
+  tenantId        String
+  flowRunId       String
+  flowRunEventId  String?
+  nodeId          String?
+  eventType       String
+  targetUrl       String
+  payloadJson     Json
+  status          FlowWebhookDeliveryStatus @default(PENDING)
+  attemptCount    Int                       @default(0)
+  maxAttempts     Int                       @default(5)
+  lastHttpStatus  Int?
+  lastError       String?
+  lastAttemptAt   DateTime?
+  deliveredAt     DateTime?
+  nextRetryAt     DateTime?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  tenant          Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  flowRun         FlowRun                   @relation(fields: [flowRunId], references: [id], onDelete: Cascade)
+  flowRunEvent    FlowRunEvent?             @relation(fields: [flowRunEventId], references: [id], onDelete: SetNull)
+  attempts        FlowWebhookDeliveryAttempt[]
+
+  @@index([tenantId, status, createdAt(sort: Desc)])
+  @@index([flowRunId, createdAt(sort: Desc)])
+  @@index([flowRunEventId])
+}
+
+model FlowWebhookDeliveryAttempt {
+  id               String              @id @default(cuid())
+  deliveryId       String
+  attemptNumber    Int
+  httpStatus       Int?
+  responseBody     String?
+  errorMessage     String?
+  durationMs       Int?
+  createdAt        DateTime            @default(now())
+  delivery         FlowWebhookDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+
+  @@index([deliveryId, attemptNumber])
 }

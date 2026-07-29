@@ -19,6 +19,35 @@ export class StorageService {
     return `tenants/${tenantId}/chat-imports/${importJobId}${safeExt.startsWith(".") ? safeExt : `.${safeExt}`}`;
   }
 
+  buildMessageMediaKey(
+    tenantId: string,
+    conversationId: string,
+    messageId: string,
+    filename: string
+  ): string {
+    const safeName = filename.replace(/[/\\]/g, "_").replace(/\.\./g, "_").trim() || "archivo";
+    return `tenants/${tenantId}/conversations/${conversationId}/messages/${messageId}/${safeName}`;
+  }
+
+  async saveMessageMedia(input: {
+    tenantId: string;
+    conversationId: string;
+    messageId: string;
+    filename: string;
+    buffer: Buffer;
+  }): Promise<{ storagePath: string; fileSize: number }> {
+    const storagePath = this.buildMessageMediaKey(
+      input.tenantId,
+      input.conversationId,
+      input.messageId,
+      input.filename
+    );
+    const absolutePath = path.join(this.basePath, storagePath.replace(/^tenants\//, "tenants/"));
+    await mkdir(path.dirname(absolutePath), { recursive: true });
+    await writeFile(absolutePath, input.buffer);
+    return { storagePath, fileSize: input.buffer.length };
+  }
+
   async saveChatImport(input: {
     tenantId: string;
     importJobId: string;

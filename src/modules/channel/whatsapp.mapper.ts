@@ -110,6 +110,53 @@ export function normalizeWebhookEvents(payload: unknown): NormalizedWebhookEvent
           continue;
         }
 
+        if (message.type === "image" && "image" in message) {
+          const caption = message.image.caption?.trim();
+          const item: NormalizedIncomingMessage = {
+            kind: "message",
+            externalMessageId: message.id,
+            fromPhone: message.from,
+            toPhoneNumberId,
+            text: caption || "[Imagen]",
+            timestamp,
+            media: {
+              type: "image",
+              mediaId: message.image.id,
+              ...(message.image.mime_type ? { mimeType: message.image.mime_type } : {}),
+              ...(caption ? { caption } : {})
+            },
+            rawPayload: payload
+          };
+          if (fromName) item.fromName = fromName;
+          if (toPhoneDisplay) item.toPhoneDisplay = toPhoneDisplay;
+          normalized.push(item);
+          continue;
+        }
+
+        if (message.type === "document" && "document" in message) {
+          const caption = message.document.caption?.trim();
+          const item: NormalizedIncomingMessage = {
+            kind: "message",
+            externalMessageId: message.id,
+            fromPhone: message.from,
+            toPhoneNumberId,
+            text: caption || message.document.filename || "[Documento]",
+            timestamp,
+            media: {
+              type: "document",
+              mediaId: message.document.id,
+              ...(message.document.mime_type ? { mimeType: message.document.mime_type } : {}),
+              ...(message.document.filename ? { filename: message.document.filename } : {}),
+              ...(caption ? { caption } : {})
+            },
+            rawPayload: payload
+          };
+          if (fromName) item.fromName = fromName;
+          if (toPhoneDisplay) item.toPhoneDisplay = toPhoneDisplay;
+          normalized.push(item);
+          continue;
+        }
+
         if (!("text" in message)) {
           continue;
         }

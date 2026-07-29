@@ -25,6 +25,37 @@ type GraphErrorPayload = {
   };
 };
 
+type MediaUrlResponse = {
+  url?: string;
+  mime_type?: string;
+  file_size?: number;
+};
+
+type SendMediaBaseParams = {
+  phoneNumberId: string;
+  accessToken: string;
+  to: string;
+  mediaId: string;
+  caption?: string;
+  replyToExternalId?: string;
+};
+
+type UploadMediaParams = {
+  phoneNumberId: string;
+  accessToken: string;
+  buffer: Buffer;
+  mimeType: string;
+  filename: string;
+};
+
+type UploadMediaResponse = {
+  id?: string;
+};
+
+type SendDocumentParams = SendMediaBaseParams & {
+  filename: string;
+};
+
 export class WhatsAppSendError extends Error {
   constructor(
     message: string,
@@ -78,7 +109,7 @@ export class WhatsAppClient {
     });
 
     if (!response.ok) {
-      throw this.buildSendError(response, params.to, params.phoneNumberId, "send");
+      throw await this.buildSendError(response, params.to, params.phoneNumberId, "send");
     }
 
     const json = (await response.json()) as SendMessageResponse;
@@ -111,8 +142,147 @@ export class WhatsAppClient {
     });
 
     if (!response.ok) {
-      throw this.buildSendError(response, undefined, params.phoneNumberId, "edit");
+      throw await this.buildSendError(response, undefined, params.phoneNumberId, "edit");
     }
+  }
+
+  async uploadMedia(params: UploadMediaParams): Promise<string> {
+    const endpoint = `https://graph.facebook.com/${env.WHATSAPP_GRAPH_VERSION}/${params.phoneNumberId}/media`;
+    const form = new FormData();
+    form.append("messaging_product", "whatsapp");
+    form.append("type", params.mimeType);
+    form.append(
+      "file",
+      new Blob([new Uint8Array(params.buffer)], { type: params.mimeType }),
+      params.filename
+    );
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${params.accessToken}` },
+      body: form
+    });
+
+    if (!response.ok) {
+      throw await this.buildSendError(response, undefined, params.phoneNumberId, "send");
+    }
+
+    const json = (await response.json()) as UploadMediaResponse;
+    if (!json.id) {
+      throw new Error("WhatsApp no devolvió media id al subir archivo");
+    }
+
+    return json.id;
+  }
+
+  async sendImageMessage(params: SendMediaBaseParams): Promise<string | null> {
+    const endpoint = `https://graph.facebook.com/${env.WHATSAPP_GRAPH_VERSION}/${params.phoneNumberId}/messages`;
+
+    const payload: Record<string, unknown> = {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: params.to,
+      type: "image",
+      image: {
+        id: params.mediaId,
+        ...(params.caption ? { caption: params.caption } : {})
+      }
+    };
+
+    if (params.replyToExternalId) {
+      payload.context = { message_id: params.replyToExternalId };
+    }
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${params.accessToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      throw await this.buildSendError(response, params.to, params.phoneNumberId, "send");
+    }
+
+    const json = (await response.json()) as SendMessageResponse;
+    return json.messages?.[0]?.id ?? null;
+  }
+
+  async sendDocumentMessage(params: SendDocumentParams): Promise<string | null> {
+    const endpoint = `https://graph.facebook.com/${env.WHATSAPP_GRAPH_VERSION}/${params.phoneNumberId}/messages`;
+
+    const payload: Record<string, unknown> = {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: params.to,
+      type: "document",
+      document: {
+        id: params.mediaId,
+        filename: params.filename,
+        ...(params.caption ? { caption: params.caption } : {})
+      }
+    };
+
+    if (params.replyToExternalId) {
+      payload.context = { message_id: params.replyToExternalId };
+    }
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${params.accessToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      throw await this.buildSendError(response, params.to, params.phoneNumberId, "send");
+    }
+
+    const json = (await response.json()) as SendMessageResponse;
+    return json.messages?.[0]?.id ?? null;
+  }
+
+  async getMediaMetadata(mediaId: string, accessToken: string): Promise<MediaUrlResponse> {
+    const endpoint = `https://graph.facebook.com/${env.WHATSAPP_GRAPH_VERSION}/${mediaId}`;
+    const response = await fetch(endpoint, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`No se pudo obtener metadata del media ${mediaId}: ${response.status} ${body}`);
+    }
+
+    return (await response.json()) as MediaUrlResponse;
+  }
+
+  async downloadMediaBuffer(mediaId: string, accessToken: string): Promise<{
+    buffer: Buffer;
+    mimeType?: string;
+  }> {
+    const metadata = await this.getMediaMetadata(mediaId, accessToken);
+    if (!metadata.url) {
+      throw new Error(`Media ${mediaId} no tiene URL de descarga`);
+    }
+
+    const response = await fetch(metadata.url, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`No se pudo descargar media ${mediaId}: ${response.status} ${body}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    return {
+      buffer: Buffer.from(arrayBuffer),
+      ...(metadata.mime_type ? { mimeType: metadata.mime_type } : {})
+    };
   }
 
   private async buildSendError(

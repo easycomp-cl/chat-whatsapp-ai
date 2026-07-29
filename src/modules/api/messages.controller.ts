@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import multer from "multer";
 import {
   ContentType,
   MessageDirection,
@@ -8,10 +9,18 @@ import {
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { paramId } from "../../utils/params.js";
+import { decodeUploadedFilename } from "../../utils/decode-filename.js";
 import { TenantResolverService } from "../tenants/tenant-resolver.service.js";
 import { WhatsAppClient, WhatsAppSendError } from "../channel/whatsapp.client.js";
 import { MessageIngestService } from "../conversations/message-ingest.service.js";
+import { messageMediaService } from "../conversations/message-media.service.js";
+import {
+  defaultFilenameForMime,
+  validateOutboundMediaMime,
+  validateOutboundMediaSize
+} from "../conversations/message-media.utils.js";
 import { truncateQuotedText } from "../../utils/quoted-text.js";
+import { buildMediaMessageResponse } from "./message-media.controller.js";
 
 const sendMessageSchema = z.object({
   text: z.string().min(1),
@@ -22,6 +31,19 @@ const sendMessageSchema = z.object({
 const editMessageSchema = z.object({
   text: z.string().min(1)
 });
+
+const sendMediaFieldsSchema = z.object({
+  caption: z.string().optional(),
+  agent_phone: z.string().optional(),
+  reply_to_message_id: z.string().optional()
+});
+
+const mediaUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 100 * 1024 * 1024 }
+});
+
+export const conversationMediaUploadMiddleware = mediaUpload.single("file");
 
 const WHATSAPP_EDIT_WINDOW_MS = 15 * 60 * 1000;
 
@@ -133,19 +155,130 @@ export async function sendConversationMessage(req: Request, res: Response) {
     quotedSenderType
   });
 
-  res.status(201).json({
-    id: message.id,
-    conversation_id: message.conversationId,
-    direction: message.direction,
-    sender_type: message.senderType,
-    content_text: message.contentText,
-    external_id: message.externalId,
-    whatsapp_delivery_status: message.whatsappDeliveryStatus,
-    reply_to_message_id: message.replyToMessageId,
-    quoted_text: message.quotedText,
-    quoted_sender_type: message.quotedSenderType,
-    created_at: message.createdAt
+  res.status(201).json(buildMediaMessageResponse(message));
+}
+
+export async function sendConversationMediaMessage(req: Request, res: Response) {
+  const conversationId = paramId(req, "id");
+  const file = req.file;
+
+  if (!file) {
+    res.status(400).json({ error: "Debes adjuntar un archivo en el campo file" });
+    return;
+  }
+
+  const fields = sendMediaFieldsSchema.parse(req.body);
+
+  const mimeValidation = validateOutboundMediaMime(file.mimetype);
+  if (!mimeValidation.ok) {
+    res.status(400).json({ error: mimeValidation.error });
+    return;
+  }
+
+  const sizeError = validateOutboundMediaSize(mimeValidation.contentType, file.size);
+  if (sizeError) {
+    res.status(400).json({ error: sizeError });
+    return;
+  }
+
+  const resolved = await resolveChannelForConversation(conversationId);
+  if (!resolved) {
+    res.status(404).json({ error: "Conversation not found" });
+    return;
+  }
+  if (resolved.error === "no_channel") {
+    res.status(400).json({ error: "No active WhatsApp channel for this business" });
+    return;
+  }
+
+  const { conversation, channel } = resolved;
+
+  let replyToExternalId: string | undefined;
+  let replyToMessageId: string | null = null;
+  let quotedText: string | null = null;
+  let quotedSenderType = null as SenderType | null;
+
+  if (fields.reply_to_message_id) {
+    const parent = await prisma.message.findFirst({
+      where: {
+        id: fields.reply_to_message_id,
+        conversationId: conversation!.id
+      }
+    });
+    if (parent) {
+      replyToMessageId = parent.id;
+      quotedText = truncateQuotedText(parent.contentText);
+      quotedSenderType = parent.senderType;
+      if (parent.externalId) {
+        replyToExternalId = parent.externalId;
+      }
+    }
+  }
+
+  const tenantResolver = new TenantResolverService();
+  const accessToken = tenantResolver.resolveAccessToken(channel!.accessTokenEncrypted);
+  const messageIngest = new MessageIngestService();
+  const agentPhone = fields.agent_phone ?? conversation!.channelPhoneNumber;
+
+  const originalFilename =
+    decodeUploadedFilename(file.originalname) ||
+    defaultFilenameForMime(mimeValidation.contentType, file.mimetype);
+  const displayText =
+    fields.caption?.trim() ||
+    originalFilename ||
+    (mimeValidation.contentType === ContentType.IMAGE ? "[Imagen]" : "[Documento]");
+
+  const message = await messageIngest.ingestHumanMessage({
+    tenantId: conversation!.tenantId,
+    conversationId: conversation!.id,
+    customerId: conversation!.customerId,
+    agentPhone,
+    businessPhone: conversation!.channelPhoneNumber,
+    customerPhone: conversation!.customer.phoneNumber,
+    text: displayText,
+    contentType: mimeValidation.contentType,
+    replyToMessageId,
+    quotedText,
+    quotedSenderType
   });
+
+  try {
+    await messageMediaService.storeOutboundBuffer({
+      tenantId: conversation!.tenantId,
+      conversationId: conversation!.id,
+      messageId: message.id,
+      buffer: file.buffer,
+      mimeType: file.mimetype,
+      filename: originalFilename,
+      contentType: mimeValidation.contentType
+    });
+
+    const wamid = await messageMediaService.sendStoredMessageToWhatsApp({
+      messageId: message.id,
+      phoneNumberId: channel!.phoneNumberId,
+      accessToken,
+      to: conversation!.customer.phoneNumber,
+      ...(replyToExternalId ? { replyToExternalId } : {})
+    });
+
+    if (wamid) {
+      await messageIngest.setMessageExternalId(message.id, wamid);
+    }
+  } catch (error) {
+    await messageIngest.markDeliveryFailed(message.id);
+    if (error instanceof WhatsAppSendError) {
+      res.status(error.isTokenExpired ? 503 : 502).json({
+        error: error.message,
+        action: error.action,
+        token_expired: error.isTokenExpired
+      });
+      return;
+    }
+    throw error;
+  }
+
+  const persisted = await prisma.message.findUnique({ where: { id: message.id } });
+  res.status(201).json(buildMediaMessageResponse(persisted!));
 }
 
 export async function resendOutboundMessage(req: Request, res: Response) {
@@ -200,13 +333,26 @@ export async function resendOutboundMessage(req: Request, res: Response) {
 
   let wamid: string | null = null;
   try {
-    wamid = await whatsAppClient.sendTextMessage({
-      phoneNumberId: channel.phoneNumberId,
-      accessToken,
-      to: message.conversation.customer.phoneNumber,
-      text: message.contentText,
-      ...(message.replyToExternalId ? { replyToExternalId: message.replyToExternalId } : {})
-    });
+    if (
+      message.contentType === ContentType.IMAGE ||
+      message.contentType === ContentType.DOCUMENT
+    ) {
+      wamid = await messageMediaService.sendStoredMessageToWhatsApp({
+        messageId,
+        phoneNumberId: channel.phoneNumberId,
+        accessToken,
+        to: message.conversation.customer.phoneNumber,
+        ...(message.replyToExternalId ? { replyToExternalId: message.replyToExternalId } : {})
+      });
+    } else {
+      wamid = await whatsAppClient.sendTextMessage({
+        phoneNumberId: channel.phoneNumberId,
+        accessToken,
+        to: message.conversation.customer.phoneNumber,
+        text: message.contentText,
+        ...(message.replyToExternalId ? { replyToExternalId: message.replyToExternalId } : {})
+      });
+    }
   } catch (error) {
     await messageIngest.markDeliveryFailed(messageId);
     if (error instanceof WhatsAppSendError) {
@@ -227,14 +373,7 @@ export async function resendOutboundMessage(req: Request, res: Response) {
 
   const updated = await prisma.message.findUnique({ where: { id: messageId } });
 
-  res.status(200).json({
-    id: updated!.id,
-    conversation_id: updated!.conversationId,
-    external_id: updated!.externalId,
-    whatsapp_delivery_status: updated!.whatsappDeliveryStatus,
-    content_text: updated!.contentText,
-    created_at: updated!.createdAt
-  });
+  res.status(200).json(buildMediaMessageResponse(updated!));
 }
 
 export async function editOutboundMessage(req: Request, res: Response) {

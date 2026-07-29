@@ -65,10 +65,35 @@ const revokeMessageSchema = z.object({
   })
 });
 
+const mediaObjectSchema = z.object({
+  id: z.string(),
+  mime_type: z.string().optional(),
+  caption: z.string().optional(),
+  filename: z.string().optional()
+});
+
+const imageMessageSchema = z.object({
+  id: z.string(),
+  from: z.string(),
+  timestamp: z.string().optional(),
+  type: z.literal("image"),
+  image: mediaObjectSchema
+});
+
+const documentMessageSchema = z.object({
+  id: z.string(),
+  from: z.string(),
+  timestamp: z.string().optional(),
+  type: z.literal("document"),
+  document: mediaObjectSchema
+});
+
 const inboundMessageSchema = z.union([
   reactionMessageSchema,
   editMessageSchema,
   revokeMessageSchema,
+  imageMessageSchema,
+  documentMessageSchema,
   textMessageSchema
 ]);
 

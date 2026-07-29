@@ -19,7 +19,8 @@ import {
   listConversationsInbox,
   patchConversationMode
 } from "./conversations.controller.js";
-import { sendConversationMessage, resendOutboundMessage, editOutboundMessage } from "./messages.controller.js";
+import { sendConversationMessage, resendOutboundMessage, editOutboundMessage, sendConversationMediaMessage, conversationMediaUploadMiddleware } from "./messages.controller.js";
+import { getMessageMediaUrl, streamMessageMediaFile } from "./message-media.controller.js";
 import { getCustomerProfile, patchCustomerProfileHandler } from "./customers.controller.js";
 import {
   connectShopify,
@@ -78,6 +79,41 @@ import {
   approveToneAnalysis,
   getConsolidatedToneAnalysis
 } from "../chat-analysis/controllers/tone-analysis.controller.js";
+import {
+  createFlow,
+  createFlowVersion,
+  deleteFlow,
+  getFlow,
+  getFlowVersion,
+  listFlows,
+  listFlowVersions,
+  patchFlow,
+  publishFlowVersion,
+  simulateFlow,
+  updateFlowVersion
+} from "./flows.controller.js";
+import {
+  cancelFlowRun,
+  getFlowRun,
+  listFlowReviews,
+  pauseFlowRun,
+  resolveFlowReview,
+  resumeFlowRun,
+  retryFlowRun,
+  startConversationFlow,
+  submitFlowRunAgentInput
+} from "./flow-runs.controller.js";
+import { startFlowByApi } from "./flow-triggers.controller.js";
+import { getFlowFileSignedUrl } from "./flow-files.controller.js";
+import {
+  getFlowWebhookDelivery,
+  listFlowWebhookDeliveries,
+  retryFlowWebhookDelivery
+} from "./flow-webhook-deliveries.controller.js";
+import {
+  getFlowWebhookIntegration,
+  upsertFlowWebhookIntegration
+} from "./flow-webhook-integration.controller.js";
 
 export function createApiRouter() {
   const router = Router();
@@ -96,6 +132,13 @@ export function createApiRouter() {
   router.get("/conversations/:id", getConversation);
   router.patch("/conversations/:id/mode", patchConversationMode);
   router.post("/conversations/:id/messages", sendConversationMessage);
+  router.post(
+    "/conversations/:id/messages/media",
+    conversationMediaUploadMiddleware,
+    sendConversationMediaMessage
+  );
+  router.get("/messages/:id/media-url", getMessageMediaUrl);
+  router.get("/messages/:id/media/file", streamMessageMediaFile);
   router.post("/messages/:id/resend", resendOutboundMessage);
   router.patch("/messages/:id", editOutboundMessage);
 
@@ -191,6 +234,44 @@ export function createApiRouter() {
   router.patch(
     "/businesses/:businessId/tone-analysis/:toneAnalysisId/approve",
     approveToneAnalysis
+  );
+
+  router.get("/businesses/:businessId/flows", listFlows);
+  router.post("/businesses/:businessId/flows", createFlow);
+  router.get("/businesses/:businessId/flows/:flowId", getFlow);
+  router.patch("/businesses/:businessId/flows/:flowId", patchFlow);
+  router.delete("/businesses/:businessId/flows/:flowId", deleteFlow);
+  router.get("/businesses/:businessId/flows/:flowId/versions", listFlowVersions);
+  router.post("/businesses/:businessId/flows/:flowId/versions", createFlowVersion);
+  router.get("/businesses/:businessId/flows/:flowId/versions/:versionId", getFlowVersion);
+  router.patch("/businesses/:businessId/flows/:flowId/versions/:versionId", updateFlowVersion);
+  router.post(
+    "/businesses/:businessId/flows/:flowId/versions/:versionId/publish",
+    publishFlowVersion
+  );
+  router.post("/businesses/:businessId/flows/:flowId/simulate", simulateFlow);
+  router.post("/businesses/:businessId/flows/:flowId/start-by-api", startFlowByApi);
+
+  router.post(
+    "/businesses/:businessId/conversations/:conversationId/flows/:flowId/start",
+    startConversationFlow
+  );
+  router.get("/businesses/:businessId/flow-runs/:runId", getFlowRun);
+  router.post("/businesses/:businessId/flow-runs/:runId/pause", pauseFlowRun);
+  router.post("/businesses/:businessId/flow-runs/:runId/resume", resumeFlowRun);
+  router.post("/businesses/:businessId/flow-runs/:runId/cancel", cancelFlowRun);
+  router.post("/businesses/:businessId/flow-runs/:runId/retry", retryFlowRun);
+  router.post("/businesses/:businessId/flow-runs/:runId/agent-input", submitFlowRunAgentInput);
+  router.get("/businesses/:businessId/flow-reviews", listFlowReviews);
+  router.post("/businesses/:businessId/flow-reviews/:reviewId/resolve", resolveFlowReview);
+  router.get("/businesses/:businessId/flow-files/:fileId/signed-url", getFlowFileSignedUrl);
+  router.get("/businesses/:businessId/integrations/flow-webhook", getFlowWebhookIntegration);
+  router.put("/businesses/:businessId/integrations/flow-webhook", upsertFlowWebhookIntegration);
+  router.get("/businesses/:businessId/flow-webhook-deliveries", listFlowWebhookDeliveries);
+  router.get("/businesses/:businessId/flow-webhook-deliveries/:deliveryId", getFlowWebhookDelivery);
+  router.post(
+    "/businesses/:businessId/flow-webhook-deliveries/:deliveryId/retry",
+    retryFlowWebhookDelivery
   );
 
   return router;

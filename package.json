@@ -19,11 +19,12 @@
     "activate:twd": "tsx scripts/activate-twd-whatsapp.ts",
     "seed:knowledge": "tsx scripts/seed-knowledge-fixtures.ts",
     "refresh:knowledge": "tsx scripts/refresh-knowledge-content.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:flow-webhook": "tsx scripts/test-flow-webhook-e2e.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",
-    "prisma": "^5.20.0",
+    "@supabase/supabase-js": "^2.111.0",
     "adm-zip": "^0.5.17",
     "bullmq": "^5.78.0",
     "dotenv": "^16.4.5",
@@ -37,6 +38,7 @@
     "pino": "^9.4.0",
     "pino-http": "^10.3.0",
     "pino-pretty": "^11.2.2",
+    "prisma": "^5.20.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

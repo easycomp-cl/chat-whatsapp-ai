@@ -22,6 +22,9 @@ type InboxRow = {
   customer_first_seen_at: Date | null;
   customer_last_seen_at: Date | null;
   last_message_preview: string | null;
+  active_flow_run_id: string | null;
+  active_flow_run_status: string | null;
+  pending_agent_input: unknown | null;
 };
 
 export type InboxConversation = {
@@ -50,6 +53,12 @@ export type InboxConversation = {
     last_seen_at: string | null;
   } | null;
   last_message_preview: string | null;
+  flow_mode_locked: boolean;
+  active_flow_run: {
+    id: string;
+    status: string;
+    pending_agent_input: unknown | null;
+  } | null;
 };
 
 function toIso(value: Date | null | undefined): string | null {
@@ -86,7 +95,15 @@ function mapRow(row: InboxRow): InboxConversation {
       first_seen_at: toIso(row.customer_first_seen_at),
       last_seen_at: toIso(row.customer_last_seen_at)
     },
-    last_message_preview: row.last_message_preview
+    last_message_preview: row.last_message_preview,
+    flow_mode_locked: Boolean(row.active_flow_run_id),
+    active_flow_run: row.active_flow_run_id
+      ? {
+          id: row.active_flow_run_id,
+          status: row.active_flow_run_status ?? "RUNNING",
+          pending_agent_input: row.pending_agent_input ?? null
+        }
+      : null
   };
 }
 
@@ -124,9 +141,13 @@ export class ConversationsInboxService {
         cu."displayAlias" AS customer_display_alias,
         cu."firstSeenAt" AS customer_first_seen_at,
         cu."lastSeenAt" AS customer_last_seen_at,
-        preview."contentText" AS last_message_preview
+        preview."contentText" AS last_message_preview,
+        c."activeFlowRunId" AS active_flow_run_id,
+        fr.status::text AS active_flow_run_status,
+        fr."pendingAgentInputJson" AS pending_agent_input
       FROM "Conversation" c
       INNER JOIN "Customer" cu ON cu.id = c."customerId"
+      LEFT JOIN "FlowRun" fr ON fr.id = c."activeFlowRunId"
       LEFT JOIN LATERAL (
         SELECT m."contentText"
         FROM "Message" m

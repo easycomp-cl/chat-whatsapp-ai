@@ -6,6 +6,8 @@ import { assertDatabaseConnection, DATABASE_UNAVAILABLE_MESSAGE } from "./lib/pr
 import { receiveWebhook, verifyWebhook } from "./modules/channel/whatsapp.controller.js";
 import { validateMetaSignature } from "./modules/channel/meta-signature.middleware.js";
 import { createApiRouter } from "./modules/api/router.js";
+import { receiveFlowWebhook } from "./modules/api/flow-triggers.controller.js";
+import { validateFlowWebhookSignature } from "./modules/flows/flow-webhook-signature.middleware.js";
 
 export function createApp() {
   const app = express();
@@ -32,6 +34,11 @@ export function createApp() {
 
   app.get("/webhooks/whatsapp", verifyWebhook);
   app.post("/webhooks/whatsapp", validateMetaSignature, receiveWebhook);
+  app.post(
+    "/webhooks/flows/:triggerId",
+    validateFlowWebhookSignature,
+    receiveFlowWebhook
+  );
 
   app.use("/", createApiRouter());
 
