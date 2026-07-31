@@ -8,12 +8,13 @@ import {
 } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
+import { logger } from "../../lib/logger.js";
 import { paramId } from "../../utils/params.js";
 import { decodeUploadedFilename } from "../../utils/decode-filename.js";
 import { TenantResolverService } from "../tenants/tenant-resolver.service.js";
 import { WhatsAppClient, WhatsAppSendError } from "../channel/whatsapp.client.js";
 import { MessageIngestService } from "../conversations/message-ingest.service.js";
-import { messageMediaService } from "../conversations/message-media.service.js";
+import { messageMediaService, MessageMediaHttpError } from "../conversations/message-media.service.js";
 import {
   defaultFilenameForMime,
   validateOutboundMediaMime,
@@ -278,7 +279,12 @@ export async function sendConversationMediaMessage(req: Request, res: Response) 
       });
       return;
     }
-    throw error;
+    if (error instanceof MessageMediaHttpError) {
+      res.status(error.statusCode).json({ error: error.message, code: error.code });
+      return;
+    }
+    logger.error({ err: error, messageId: message.id }, "Failed to send outbound media message");
+    res.status(502).json({ error: "No se pudo enviar el archivo adjunto" });
   }
 
   const persisted = await prisma.message.findUnique({ where: { id: message.id } });
@@ -369,7 +375,19 @@ export async function resendOutboundMessage(req: Request, res: Response) {
       });
       return;
     }
-    throw error;
+    if (error instanceof MessageMediaHttpError) {
+      res.status(error.statusCode).json({
+        error: error.message,
+        code: error.code,
+        whatsapp_delivery_status: "FAILED"
+      });
+      return;
+    }
+    logger.error({ err: error, messageId }, "Failed to resend outbound message");
+    res.status(502).json({
+      error: "No se pudo reenviar el mensaje",
+      whatsapp_delivery_status: "FAILED"
+    });
   }
 
   if (wamid) {

@@ -31,7 +31,11 @@
         { "name": "STORAGE_PATH", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:STORAGE_PATH::" },
         { "name": "SHOPIFY_API_VERSION", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:SHOPIFY_API_VERSION::" },
         { "name": "SKIP_WEBHOOK_SIGNATURE", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:SKIP_WEBHOOK_SIGNATURE::" },
-        { "name": "DEFAULT_TIMEZONE", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:DEFAULT_TIMEZONE::" }
+        { "name": "DEFAULT_TIMEZONE", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:DEFAULT_TIMEZONE::" },
+        { "name": "SUPABASE_URL", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:SUPABASE_URL::" },
+        { "name": "SUPABASE_SERVICE_ROLE_KEY", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:SUPABASE_SERVICE_ROLE_KEY::" },
+        { "name": "SUPABASE_FLOW_FILES_BUCKET", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:SUPABASE_FLOW_FILES_BUCKET::" },
+        { "name": "SUPABASE_CHAT_MEDIA_BUCKET", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:SUPABASE_CHAT_MEDIA_BUCKET::" }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",

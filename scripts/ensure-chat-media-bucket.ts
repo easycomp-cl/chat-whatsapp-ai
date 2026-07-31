@@ -22,7 +22,14 @@ const allowedMimeTypes = [
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "application/vnd.ms-powerpoint",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "audio/aac",
+  "audio/mp4",
+  "audio/mpeg",
+  "audio/amr",
+  "audio/ogg",
+  "audio/opus",
+  "audio/webm"
 ];
 
 async function main() {
