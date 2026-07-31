@@ -1,34 +1,23 @@
-import { extractContentWords, normalizeForMatch } from "./direct-match.js";
+import type { GreetingWarmth } from "../modules/chat-analysis/types/greeting-config.type.js";
+import type { ConversationalConfig } from "../modules/runtime/types/conversational-response.type.js";
+import { pickConversationalResponse } from "../modules/runtime/conversational-response.service.js";
+import {
+  isGreetingLike,
+  isGreetingWithBusinessQuestion,
+  isPureGreeting
+} from "./greeting-match.js";
+import { normalizeForMatch } from "./direct-match.js";
 
 export type ConversationalIntent = "greeting" | "thanks" | "ack";
 
-const GREETING_PREFIX =
-  /^(hola+|buenas?|hey|hi|hello|que tal|como estas?|buenos dias|buen dia|buenas tardes|buenas noches)\b/;
+export { isGreetingLike, isGreetingWithBusinessQuestion };
 
-const GREETING_PATTERNS = [
-  /^hola+$/,
-  /^holaa+$/,
-  /^buenas?$/,
-  /^buenos dias$/,
-  /^buenas tardes$/,
-  /^buenas noches$/,
-  /^buen dia$/,
-  /^hey$/,
-  /^hi$/,
-  /^hello$/,
-  /^saludos$/,
-  /^que tal$/,
-  /^como estas?$/,
-  /^estas$/,
-  /^todo bien$/,
-  /^como andas?$/,
-  /^como va$/,
-  /^buen dia$/,
-  /^buenas tardes$/,
-  /^buenas noches$/
+const THANKS_PATTERNS = [
+  /^gracias+$/,
+  /^muchas gracias+$/,
+  /^mil gracias+$/,
+  /^te agradezco$/
 ];
-
-const THANKS_PATTERNS = [/^gracias$/, /^muchas gracias$/, /^mil gracias$/, /^te agradezco$/];
 
 const ACK_PATTERNS = [
   /^ok$/,
@@ -44,43 +33,13 @@ const ACK_PATTERNS = [
   /^dale$/
 ];
 
-function isShortGreeting(normalized: string): boolean {
-  if (GREETING_PATTERNS.some((pattern) => pattern.test(normalized))) {
-    return true;
-  }
-
-  if (!GREETING_PREFIX.test(normalized)) {
-    return false;
-  }
-
-  const words = normalized.split(/\s+/).filter(Boolean);
-  if (words.length > 8) {
-    return false;
-  }
-
-  const businessWords = extractContentWords(normalized);
-  return businessWords.length <= 2;
-}
-
-export function isGreetingWithBusinessQuestion(text: string): boolean {
-  const normalized = normalizeForMatch(text);
-  if (!normalized || !GREETING_PREFIX.test(normalized)) {
-    return false;
-  }
-  if (isShortGreeting(normalized)) {
-    return false;
-  }
-  const businessWords = extractContentWords(normalized);
-  return businessWords.length >= 2;
-}
-
 export function detectConversationalIntent(text: string): ConversationalIntent | null {
   const normalized = normalizeForMatch(text);
   if (!normalized) {
     return null;
   }
 
-  if (isShortGreeting(normalized)) {
+  if (isPureGreeting(text)) {
     return "greeting";
   }
   if (THANKS_PATTERNS.some((pattern) => pattern.test(normalized))) {
@@ -93,18 +52,65 @@ export function detectConversationalIntent(text: string): ConversationalIntent |
   return null;
 }
 
+export type ConversationalReplyConfig = {
+  greetingMessage: string;
+  botName: string;
+  businessName: string;
+  toneGreeting?: string;
+  customerName?: string;
+  isReturningCustomer?: boolean;
+  conversationId: string;
+  conversationalConfig?: ConversationalConfig;
+  fallbackMessage?: string;
+  warmth?: GreetingWarmth;
+};
+
 export function buildConversationalReply(
   intent: ConversationalIntent,
-  config: { greetingMessage: string; botName: string; toneGreeting?: string }
+  config: ConversationalReplyConfig
 ): string {
-  switch (intent) {
-    case "greeting": {
-      const greeting = config.toneGreeting ?? config.greetingMessage;
-      return `${greeting} ¿En qué te puedo ayudar hoy?`;
-    }
-    case "thanks":
-      return "¡Con gusto! Si necesitas algo más, aquí estoy.";
-    case "ack":
-      return `Perfecto. Si tienes otra consulta, escríbeme.`;
+  const saludo = config.toneGreeting ?? config.greetingMessage;
+  const placeholders: {
+    nombre?: string;
+    negocio: string;
+    bot: string;
+    saludo: string;
+  } = {
+    negocio: config.businessName,
+    bot: config.botName,
+    saludo
+  };
+  if (config.customerName) {
+    placeholders.nombre = config.customerName;
   }
+  const warmth = config.warmth ?? "neutral";
+  const conversationalConfig = config.conversationalConfig ?? {
+    responses: [],
+    handoff_on_low_confidence: false
+  };
+
+  if (intent === "greeting") {
+    const trigger = config.isReturningCustomer ? "greeting_returning" : "greeting_pure";
+    const reply = pickConversationalResponse({
+      trigger,
+      config: conversationalConfig,
+      warmth,
+      conversationId: config.conversationId,
+      placeholders,
+      ...(config.fallbackMessage ? { fallbackMessage: config.fallbackMessage } : {})
+    });
+    if (reply) return reply;
+  } else {
+    const reply = pickConversationalResponse({
+      trigger: intent,
+      config: conversationalConfig,
+      warmth,
+      conversationId: config.conversationId,
+      placeholders,
+      ...(config.fallbackMessage ? { fallbackMessage: config.fallbackMessage } : {})
+    });
+    if (reply) return reply;
+  }
+
+  return `${saludo} ¿En qué te puedo ayudar hoy?`;
 }

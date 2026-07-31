@@ -76,6 +76,24 @@ export async function resolveCustomerWarmthForMessage(input: {
   return stats.is_returning ? config.returning_customer_warmth : config.new_customer_warmth;
 }
 
+export async function isReturningCustomerForMessage(input: {
+  customerId: string;
+  tenantId: string;
+  tenantConfigJson?: unknown;
+}): Promise<boolean> {
+  const customer = await prisma.customer.findUnique({
+    where: { id: input.customerId },
+    select: { id: true, tenantId: true, profileMetadata: true }
+  });
+  if (!customer) return false;
+
+  const stats = await getCustomerReturningStats({
+    customer,
+    tenantConfigJson: input.tenantConfigJson
+  });
+  return stats.is_returning;
+}
+
 export async function resolvePriorInboundCountForWarmth(input: {
   customerId: string;
   tenantId: string;

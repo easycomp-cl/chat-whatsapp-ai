@@ -109,6 +109,7 @@ export class MessageRouterService {
               botTone: resolved.tenant.config.botTone,
               greetingMessage: resolved.tenant.config.greetingMessage,
               handoffMessage: resolved.tenant.config.handoffMessage,
+              fallbackMessage: resolved.tenant.config.fallbackMessage,
               configJson: resolved.tenant.config.configJson
             }
           : null

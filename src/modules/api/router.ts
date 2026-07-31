@@ -13,6 +13,7 @@ import {
   patchBusinessSettings,
   patchFaq
 } from "./businesses.controller.js";
+import { getBotPersonality, patchBotPersonality } from "./bot-personality.controller.js";
 import {
   getConversation,
   listConversations,
@@ -123,6 +124,8 @@ export function createApiRouter() {
   router.post("/businesses", createBusiness);
   router.get("/businesses/:id", getBusiness);
   router.patch("/businesses/:id/settings", patchBusinessSettings);
+  router.get("/businesses/:id/bot-personality", getBotPersonality);
+  router.patch("/businesses/:id/bot-personality", patchBotPersonality);
   router.post("/businesses/:id/whatsapp-accounts", createWhatsappAccount);
   router.post("/businesses/:id/agents", createAgent);
   router.patch("/agents/:id", patchAgent);

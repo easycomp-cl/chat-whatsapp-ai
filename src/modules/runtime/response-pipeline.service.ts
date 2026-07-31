@@ -15,18 +15,25 @@ import type { HandoffReason } from "./prompts.js";
 import {
   buildConversationalReply,
   detectConversationalIntent,
+  isGreetingLike,
   isGreetingWithBusinessQuestion
 } from "../../utils/conversational.js";
 import { shouldBypassFaqMatch } from "../../utils/faq-bypass.js";
-import { prisma } from "../../lib/prisma.js";
 import {
   buildGreetingStyleHint,
   parseToneGreetingConfig,
   parseToneGreetings,
   pickGreetingForWarmth
 } from "./greeting-runtime.service.js";
-import { resolveCustomerWarmthForMessage } from "../customers/customer-returning.service.js";
+import {
+  isReturningCustomerForMessage,
+  resolveCustomerWarmthForMessage
+} from "../customers/customer-returning.service.js";
 import { resolveCustomerDisplayName } from "../../utils/customer-display-name.js";
+import {
+  parseConversationalConfig,
+  pickConversationalResponse
+} from "./conversational-response.service.js";
 
 export type PipelineInput = {
   tenant: {
@@ -40,6 +47,7 @@ export type PipelineInput = {
       botTone: string;
       greetingMessage: string;
       handoffMessage: string;
+      fallbackMessage?: string;
       configJson?: unknown;
     } | null;
   };
@@ -115,6 +123,7 @@ export class ResponsePipelineService {
         : {};
     const toneGreetings = parseToneGreetings(configJson);
     const greetingConfig = parseToneGreetingConfig(configJson);
+    const conversationalConfig = parseConversationalConfig(configJson);
     const customerWarmth = await resolveCustomerWarmthForMessage({
       customerId: input.customer.id,
       tenantId: input.tenant.id,
@@ -126,16 +135,32 @@ export class ResponsePipelineService {
       input.tenant.config.greetingMessage
     );
     const hybridGreetingMessage = isGreetingWithBusinessQuestion(input.incomingText);
+    const isReturningCustomer = await isReturningCustomerForMessage({
+      customerId: input.customer.id,
+      tenantId: input.tenant.id,
+      tenantConfigJson: configJson
+    });
+
+    const conversationalContext = {
+      greetingMessage: input.tenant.config.greetingMessage,
+      botName: input.tenant.config.botName,
+      businessName: input.tenant.name,
+      toneGreeting,
+      customerName: resolveCustomerDisplayName(input.customer),
+      isReturningCustomer,
+      conversationId: input.conversation.id,
+      conversationalConfig,
+      warmth: customerWarmth,
+      ...(input.tenant.config.fallbackMessage
+        ? { fallbackMessage: input.tenant.config.fallbackMessage }
+        : {})
+    };
 
     const conversationalIntent = hybridGreetingMessage
       ? null
       : detectConversationalIntent(input.incomingText);
     if (conversationalIntent) {
-      const reply = buildConversationalReply(conversationalIntent, {
-        greetingMessage: input.tenant.config.greetingMessage,
-        botName: input.tenant.config.botName,
-        toneGreeting
-      });
+      const reply = buildConversationalReply(conversationalIntent, conversationalContext);
       const outboundMessageId = await this.persistBotReply(input, reply, false);
       return { reply, outboundMessageId, mode: "bot" };
     }
@@ -164,8 +189,40 @@ export class ResponsePipelineService {
     const bestScore = ragService.getBestScore(ragHits);
     const confidenceThreshold =
       knowledgeConfig.minConfidence ?? input.tenant.confidenceThreshold;
+    const lowConfidence = bestScore < confidenceThreshold;
+    const greetingLike = isGreetingLike(input.incomingText);
 
-    if (bestScore < confidenceThreshold) {
+    if (lowConfidence && greetingLike && !hybridGreetingMessage) {
+      const reply = buildConversationalReply("greeting", conversationalContext);
+      const outboundMessageId = await this.persistBotReply(input, reply, false);
+      return { reply, outboundMessageId, mode: "bot" };
+    }
+
+    if (lowConfidence && !hybridGreetingMessage) {
+      if (!conversationalConfig.handoff_on_low_confidence) {
+        const softReply = pickConversationalResponse({
+          trigger: "soft_fallback",
+          config: conversationalConfig,
+          warmth: customerWarmth,
+          conversationId: input.conversation.id,
+          placeholders: {
+            negocio: input.tenant.name,
+            bot: input.tenant.config.botName,
+            saludo: toneGreeting,
+            ...(resolveCustomerDisplayName(input.customer)
+              ? { nombre: resolveCustomerDisplayName(input.customer) }
+              : {})
+          },
+          ...(input.tenant.config.fallbackMessage
+            ? { fallbackMessage: input.tenant.config.fallbackMessage }
+            : {})
+        });
+        if (softReply) {
+          const outboundMessageId = await this.persistBotReply(input, softReply, false);
+          return { reply: softReply, outboundMessageId, mode: "bot" };
+        }
+      }
+
       const result = await handoffService.execute({
         tenantId: input.tenant.id,
         tenantName: input.tenant.name,
@@ -182,9 +239,9 @@ export class ResponsePipelineService {
       return { reply: result.reply, outboundMessageId, mode: "human" };
     }
 
-    const knowledge = ragService.formatContext(ragHits);
+    const knowledge = lowConfidence ? "" : ragService.formatContext(ragHits);
     const greetingStyleHint =
-      toneGreetings.length > 0
+      toneGreetings.length > 0 || hybridGreetingMessage
         ? buildGreetingStyleHint({
             greeting: toneGreeting,
             combineWithAnswers: greetingConfig.combine_greeting_with_answers,
@@ -209,6 +266,30 @@ export class ResponsePipelineService {
     });
 
     if (openAiService.shouldHandoff(aiResult.text)) {
+      if (hybridGreetingMessage || greetingLike) {
+        const softReply = pickConversationalResponse({
+          trigger: "soft_fallback",
+          config: conversationalConfig,
+          warmth: customerWarmth,
+          conversationId: input.conversation.id,
+          placeholders: {
+            negocio: input.tenant.name,
+            bot: input.tenant.config.botName,
+            saludo: toneGreeting,
+            ...(resolveCustomerDisplayName(input.customer)
+              ? { nombre: resolveCustomerDisplayName(input.customer) }
+              : {})
+          },
+          ...(input.tenant.config.fallbackMessage
+            ? { fallbackMessage: input.tenant.config.fallbackMessage }
+            : {})
+        });
+        if (softReply) {
+          const outboundMessageId = await this.persistBotReply(input, softReply, false);
+          return { reply: softReply, outboundMessageId, mode: "bot" };
+        }
+      }
+
       const result = await handoffService.execute({
         tenantId: input.tenant.id,
         tenantName: input.tenant.name,
