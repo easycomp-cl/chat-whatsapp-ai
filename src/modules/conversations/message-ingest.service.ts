@@ -423,6 +423,7 @@ export class MessageIngestService {
     mediaMimeType?: string | null;
     mediaFilename?: string | null;
     mediaFileSize?: number | null;
+    rawPayloadJson?: Prisma.InputJsonValue;
   }) {
     const message = await prisma.message.create({
       data: {
@@ -437,6 +438,7 @@ export class MessageIngestService {
         contentType: input.contentType ?? ContentType.TEXT,
         aiGenerated: false,
         externalId: input.externalId ?? null,
+        ...(input.rawPayloadJson !== undefined ? { rawPayloadJson: input.rawPayloadJson } : {}),
         whatsappDeliveryStatus:
           input.externalId != null ? WhatsappDeliveryStatus.SENT : WhatsappDeliveryStatus.PENDING,
         replyToMessageId: input.replyToMessageId ?? null,

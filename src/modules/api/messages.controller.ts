@@ -23,6 +23,11 @@ import {
 } from "../conversations/message-media.utils.js";
 import { truncateQuotedText } from "../../utils/quoted-text.js";
 import { parseGraphApiErrorBody } from "../../utils/whatsapp-delivery-error.js";
+import {
+  sendInteractiveMessageSchema,
+  summarizeOutboundInteractive,
+  type OutboundInteractiveMessage
+} from "../../utils/whatsapp-interactive.js";
 import { buildMediaMessageResponse } from "./message-media.controller.js";
 
 const sendMessageSchema = z.object({
@@ -154,6 +159,104 @@ export async function sendConversationMessage(req: Request, res: Response) {
     customerPhone: conversation!.customer.phoneNumber,
     text: body.text,
     externalId: wamid,
+    replyToMessageId,
+    quotedText,
+    quotedSenderType
+  });
+
+  res.status(201).json(buildMediaMessageResponse(message));
+}
+
+export async function sendConversationInteractiveMessage(req: Request, res: Response) {
+  const conversationId = paramId(req, "id");
+  const body = sendInteractiveMessageSchema.parse(req.body);
+
+  const resolved = await resolveChannelForConversation(conversationId);
+  if (!resolved) {
+    res.status(404).json({ error: "Conversation not found" });
+    return;
+  }
+  if (resolved.error === "no_channel") {
+    res.status(400).json({ error: "No active WhatsApp channel for this business" });
+    return;
+  }
+
+  const { conversation, channel } = resolved;
+  const interactive = body.interactive as OutboundInteractiveMessage;
+
+  let replyToExternalId: string | undefined;
+  let replyToMessageId: string | null = null;
+  let quotedText: string | null = null;
+  let quotedSenderType = null as SenderType | null;
+
+  if (body.reply_to_message_id) {
+    const parent = await prisma.message.findFirst({
+      where: {
+        id: body.reply_to_message_id,
+        conversationId: conversation!.id
+      }
+    });
+    if (parent) {
+      replyToMessageId = parent.id;
+      quotedText = truncateQuotedText(parent.contentText);
+      quotedSenderType = parent.senderType;
+      if (parent.externalId) {
+        replyToExternalId = parent.externalId;
+      }
+    }
+  }
+
+  const tenantResolver = new TenantResolverService();
+  const accessToken = tenantResolver.resolveAccessToken(channel!.accessTokenEncrypted);
+  const whatsAppClient = new WhatsAppClient();
+  const messageIngest = new MessageIngestService();
+  const agentPhone = body.agent_phone ?? conversation!.channelPhoneNumber;
+
+  let wamid: string | null = null;
+  try {
+    if (interactive.type === "button") {
+      wamid = await whatsAppClient.sendInteractiveButtonMessage({
+        phoneNumberId: channel!.phoneNumberId,
+        accessToken,
+        to: conversation!.customer.phoneNumber,
+        body: interactive.body,
+        buttons: interactive.buttons,
+        ...(replyToExternalId ? { replyToExternalId } : {})
+      });
+    } else {
+      wamid = await whatsAppClient.sendInteractiveListMessage({
+        phoneNumberId: channel!.phoneNumberId,
+        accessToken,
+        to: conversation!.customer.phoneNumber,
+        body: interactive.body,
+        buttonText: interactive.buttonText,
+        sections: interactive.sections,
+        ...(replyToExternalId ? { replyToExternalId } : {})
+      });
+    }
+  } catch (error) {
+    if (error instanceof WhatsAppSendError) {
+      res.status(error.isTokenExpired ? 503 : 502).json({
+        error: error.message,
+        action: error.action,
+        token_expired: error.isTokenExpired
+      });
+      return;
+    }
+    throw error;
+  }
+
+  const message = await messageIngest.ingestHumanMessage({
+    tenantId: conversation!.tenantId,
+    conversationId: conversation!.id,
+    customerId: conversation!.customerId,
+    agentPhone,
+    businessPhone: conversation!.channelPhoneNumber,
+    customerPhone: conversation!.customer.phoneNumber,
+    text: summarizeOutboundInteractive(interactive),
+    contentType: ContentType.INTERACTIVE,
+    externalId: wamid,
+    rawPayloadJson: { outbound: { interactive } },
     replyToMessageId,
     quotedText,
     quotedSenderType

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { normalizeWebhookEvents } from "../src/modules/channel/whatsapp.mapper.js";
 import {
   buildChoiceInteractiveMessage,
+  outboundInteractiveSchema,
   slugInteractiveId
 } from "../src/utils/whatsapp-interactive.js";
 
@@ -114,5 +115,52 @@ describe("buildChoiceInteractiveMessage", () => {
 
     expect(interactive?.type).toBe("list");
     expect(interactive && interactive.type === "list" ? interactive.sections[0]?.rows.length : 0).toBe(4);
+  });
+});
+
+describe("outboundInteractiveSchema", () => {
+  it("accepts valid button payloads", () => {
+    const result = outboundInteractiveSchema.safeParse({
+      type: "button",
+      body: "¿Cómo prefieres recibir tu pedido?",
+      buttons: [
+        { id: "delivery", title: "Despacho" },
+        { id: "pickup", title: "Retiro" }
+      ]
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts valid list payloads", () => {
+    const result = outboundInteractiveSchema.safeParse({
+      type: "list",
+      body: "Elige horario",
+      buttonText: "Ver opciones",
+      sections: [
+        {
+          title: "Horarios",
+          rows: [{ id: "morning", title: "Mañana", description: "09:00" }]
+        }
+      ]
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects lists with more than ten rows", () => {
+    const rows = Array.from({ length: 11 }, (_, index) => ({
+      id: `row_${index}`,
+      title: `Opción ${index + 1}`
+    }));
+
+    const result = outboundInteractiveSchema.safeParse({
+      type: "list",
+      body: "Elige",
+      buttonText: "Ver",
+      sections: [{ rows }]
+    });
+
+    expect(result.success).toBe(false);
   });
 });

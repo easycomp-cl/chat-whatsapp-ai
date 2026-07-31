@@ -15,12 +15,24 @@ import {
 } from "./businesses.controller.js";
 import { getBotPersonality, patchBotPersonality } from "./bot-personality.controller.js";
 import {
+  completeOnboarding,
+  getSetupStatus,
+  patchOnboarding
+} from "./onboarding.controller.js";
+import {
   getConversation,
   listConversations,
   listConversationsInbox,
   patchConversationMode
 } from "./conversations.controller.js";
-import { sendConversationMessage, resendOutboundMessage, editOutboundMessage, sendConversationMediaMessage, conversationMediaUploadMiddleware } from "./messages.controller.js";
+import {
+  sendConversationMessage,
+  sendConversationInteractiveMessage,
+  resendOutboundMessage,
+  editOutboundMessage,
+  sendConversationMediaMessage,
+  conversationMediaUploadMiddleware
+} from "./messages.controller.js";
 import { getMessageMediaUrl, streamMessageMediaFile } from "./message-media.controller.js";
 import { getCustomerProfile, patchCustomerProfileHandler } from "./customers.controller.js";
 import {
@@ -126,6 +138,9 @@ export function createApiRouter() {
   router.patch("/businesses/:id/settings", patchBusinessSettings);
   router.get("/businesses/:id/bot-personality", getBotPersonality);
   router.patch("/businesses/:id/bot-personality", patchBotPersonality);
+  router.get("/businesses/:id/setup-status", getSetupStatus);
+  router.patch("/businesses/:id/onboarding", patchOnboarding);
+  router.post("/businesses/:id/onboarding/complete", completeOnboarding);
   router.post("/businesses/:id/whatsapp-accounts", createWhatsappAccount);
   router.post("/businesses/:id/agents", createAgent);
   router.patch("/agents/:id", patchAgent);
@@ -135,6 +150,7 @@ export function createApiRouter() {
   router.get("/conversations/:id", getConversation);
   router.patch("/conversations/:id/mode", patchConversationMode);
   router.post("/conversations/:id/messages", sendConversationMessage);
+  router.post("/conversations/:id/messages/interactive", sendConversationInteractiveMessage);
   router.post(
     "/conversations/:id/messages/media",
     conversationMediaUploadMiddleware,
