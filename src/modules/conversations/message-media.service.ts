@@ -24,6 +24,15 @@ export class MessageMediaHttpError extends Error {
   }
 }
 
+function rethrowMediaUploadError(error: unknown): never {
+  if (error instanceof Error && error.message.startsWith("Error subiendo media de chat a Supabase:")) {
+    const detail = error.message.replace("Error subiendo media de chat a Supabase: ", "");
+    throw new MessageMediaHttpError(`No se pudo guardar el archivo: ${detail}`, 400, "media_upload_failed");
+  }
+
+  throw error;
+}
+
 function rethrowMediaReadError(error: unknown): never {
   if (isMissingMediaStorageError(error)) {
     throw new MessageMediaHttpError(
@@ -68,11 +77,16 @@ export class MessageMediaService {
       filename
     });
 
-    const stored = await chatMediaStorageService.saveBuffer({
-      storagePath,
-      buffer: downloaded.buffer,
-      mimeType
-    });
+    let stored;
+    try {
+      stored = await chatMediaStorageService.saveBuffer({
+        storagePath,
+        buffer: downloaded.buffer,
+        mimeType
+      });
+    } catch (error) {
+      rethrowMediaUploadError(error);
+    }
 
     await prisma.message.update({
       where: { id: input.messageId },
@@ -105,11 +119,16 @@ export class MessageMediaService {
       filename: safeFilename
     });
 
-    const stored = await chatMediaStorageService.saveBuffer({
-      storagePath,
-      buffer: input.buffer,
-      mimeType: input.mimeType
-    });
+    let stored;
+    try {
+      stored = await chatMediaStorageService.saveBuffer({
+        storagePath,
+        buffer: input.buffer,
+        mimeType: input.mimeType
+      });
+    } catch (error) {
+      rethrowMediaUploadError(error);
+    }
 
     await prisma.message.update({
       where: { id: input.messageId },

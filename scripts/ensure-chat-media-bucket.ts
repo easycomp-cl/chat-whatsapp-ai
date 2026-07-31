@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 
+dotenv.config({ path: process.env.ENV_FILE ?? ".env.production" });
 dotenv.config();
 
 const url = process.env.SUPABASE_URL;
@@ -44,7 +45,17 @@ async function main() {
 
   const exists = buckets?.some((b) => b.id === bucketId || b.name === bucketId);
   if (exists) {
-    console.log(`Bucket "${bucketId}" ya existe.`);
+    const { data, error } = await supabase.storage.updateBucket(bucketId, {
+      public: false,
+      fileSizeLimit: 52428800,
+      allowedMimeTypes
+    });
+
+    if (error) {
+      throw new Error(`No se pudo actualizar bucket "${bucketId}": ${error.message}`);
+    }
+
+    console.log(`Bucket "${bucketId}" actualizado (${allowedMimeTypes.length} MIME types).`, data);
     return;
   }
 
