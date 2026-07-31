@@ -3,13 +3,15 @@ import {
   ConversationMode,
   ConversationStatus,
   MessageDirection,
+  Prisma,
   SenderType,
   WhatsappDeliveryStatus
 } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import type { NormalizedIncomingMessage } from "../../types/whatsapp.js";
 import { normalizePhone } from "../../utils/phone.js";
-import { shouldUpgradeWhatsappDeliveryStatus } from "../../utils/whatsapp-delivery-status.js";
+import type { WhatsappDeliveryErrorDetail } from "../../types/whatsapp.js";
+import { formatWhatsappDeliveryErrorMessage } from "../../utils/whatsapp-delivery-error.js";
 import { usageEventsService, USAGE_EVENT_TYPES } from "../metrics/usage-events.service.js";
 import { resolveReplyContext } from "./resolve-reply-context.js";
 
@@ -152,6 +154,8 @@ export class MessageIngestService {
     text: string;
     aiGenerated?: boolean;
     externalId?: string | null;
+    contentType?: ContentType;
+    rawPayloadJson?: Prisma.InputJsonValue;
   }) {
     const message = await prisma.message.create({
       data: {
@@ -163,8 +167,10 @@ export class MessageIngestService {
         senderPhone: normalizePhone(input.botPhone),
         receiverPhone: normalizePhone(input.customerPhone),
         contentText: input.text,
+        contentType: input.contentType ?? ContentType.TEXT,
         aiGenerated: input.aiGenerated ?? false,
         externalId: input.externalId ?? null,
+        rawPayloadJson: input.rawPayloadJson,
         whatsappDeliveryStatus:
           input.externalId != null
             ? WhatsappDeliveryStatus.SENT
@@ -185,7 +191,9 @@ export class MessageIngestService {
       where: { id: messageId },
       data: {
         externalId,
-        whatsappDeliveryStatus: WhatsappDeliveryStatus.SENT
+        whatsappDeliveryStatus: WhatsappDeliveryStatus.SENT,
+        whatsappDeliveryErrorCode: null,
+        whatsappDeliveryErrorMessage: null
       }
     });
   }
@@ -193,14 +201,35 @@ export class MessageIngestService {
   async markDeliveryPending(messageId: string) {
     await prisma.message.update({
       where: { id: messageId },
-      data: { whatsappDeliveryStatus: WhatsappDeliveryStatus.PENDING }
+      data: {
+        whatsappDeliveryStatus: WhatsappDeliveryStatus.PENDING,
+        whatsappDeliveryErrorCode: null,
+        whatsappDeliveryErrorMessage: null
+      }
     });
   }
 
-  async markDeliveryFailed(messageId: string) {
+  async markDeliveryFailed(
+    messageId: string,
+    deliveryError?: WhatsappDeliveryErrorDetail | { code?: number; message: string }
+  ) {
     await prisma.message.update({
       where: { id: messageId },
-      data: { whatsappDeliveryStatus: WhatsappDeliveryStatus.FAILED }
+      data: {
+        whatsappDeliveryStatus: WhatsappDeliveryStatus.FAILED,
+        ...(deliveryError?.message
+          ? {
+              whatsappDeliveryErrorCode:
+                "code" in deliveryError && typeof deliveryError.code === "number"
+                  ? deliveryError.code
+                  : null,
+              whatsappDeliveryErrorMessage: deliveryError.message
+            }
+          : {
+              whatsappDeliveryErrorCode: null,
+              whatsappDeliveryErrorMessage: null
+            })
+      }
     });
   }
 
@@ -324,6 +353,7 @@ export class MessageIngestService {
   async applyOutboundDeliveryStatus(input: {
     externalMessageId: string;
     status: WhatsappDeliveryStatus;
+    deliveryError?: WhatsappDeliveryErrorDetail;
   }) {
     const message = await prisma.message.findFirst({
       where: {
@@ -340,13 +370,35 @@ export class MessageIngestService {
       return { updated: false as const, reason: "not_found" as const };
     }
 
-    if (!shouldUpgradeWhatsappDeliveryStatus(message.whatsappDeliveryStatus, input.status)) {
+    const canUpdateStatus = shouldUpgradeWhatsappDeliveryStatus(
+      message.whatsappDeliveryStatus,
+      input.status
+    );
+    const canRefreshFailedDetails =
+      input.status === WhatsappDeliveryStatus.FAILED &&
+      Boolean(input.deliveryError) &&
+      message.whatsappDeliveryStatus === WhatsappDeliveryStatus.FAILED;
+
+    if (!canUpdateStatus && !canRefreshFailedDetails) {
       return { updated: false as const, reason: "stale" as const };
     }
 
     await prisma.message.update({
       where: { id: message.id },
-      data: { whatsappDeliveryStatus: input.status }
+      data: {
+        whatsappDeliveryStatus: input.status,
+        ...(input.status === WhatsappDeliveryStatus.FAILED && input.deliveryError
+          ? {
+              whatsappDeliveryErrorCode: input.deliveryError.code,
+              whatsappDeliveryErrorMessage: formatWhatsappDeliveryErrorMessage(input.deliveryError)
+            }
+          : input.status !== WhatsappDeliveryStatus.FAILED
+            ? {
+                whatsappDeliveryErrorCode: null,
+                whatsappDeliveryErrorMessage: null
+              }
+            : {})
+      }
     });
 
     return { updated: true as const, messageId: message.id };

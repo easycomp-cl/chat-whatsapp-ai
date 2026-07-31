@@ -32,12 +32,19 @@ import {
 } from "./flow-quote.service.js";
 import { flowFileService } from "./flow-file.service.js";
 import { flowWebhookDeliveryService } from "./flow-webhook-delivery.service.js";
+import type { OutboundInteractiveMessage } from "../../utils/whatsapp-interactive.js";
+import {
+  buildChoiceInteractiveMessage,
+  slugInteractiveId,
+  summarizeOutboundInteractive
+} from "../../utils/whatsapp-interactive.js";
 
 const TERMINAL_STATUSES = new Set<FlowRunStatus>(["COMPLETED", "CANCELLED", "FAILED"]);
 
 export interface FlowEngineReply {
   text: string;
   aiGenerated?: boolean;
+  interactive?: OutboundInteractiveMessage;
 }
 
 export interface FlowEngineResult {
@@ -538,10 +545,18 @@ export class FlowEngineService {
         selected = options[numeric - 1]?.value ?? options[numeric - 1]?.label ?? null;
       }
 
-      for (const option of options) {
+      for (let index = 0; index < options.length; index += 1) {
+        const option = options[index]!;
         const label = (option.label ?? option.value ?? "").toLowerCase();
         const value = (option.value ?? option.label ?? "").toLowerCase();
-        if (trimmed === label || trimmed === value || trimmed.includes(label) || trimmed.includes(value)) {
+        const optionId = slugInteractiveId(value || label, index);
+        if (
+          trimmed === label ||
+          trimmed === value ||
+          trimmed === optionId ||
+          trimmed.includes(label) ||
+          trimmed.includes(value)
+        ) {
           selected = option.value ?? option.label ?? null;
           break;
         }
@@ -700,10 +715,23 @@ export class FlowEngineService {
             const options = Array.isArray(node.config.options)
               ? (node.config.options as Array<{ label?: string; value?: string }>)
               : [];
-            const lines = options.map((o, i) => `${i + 1}. ${o.label ?? o.value ?? "Opción"}`);
-            ctx.replies.push({
-              text: ["Elige una opción:", ...lines].join("\n")
-            });
+            const prompt =
+              typeof node.config.prompt === "string" && node.config.prompt.trim()
+                ? node.config.prompt.trim()
+                : "Elige una opción:";
+            const interactive = buildChoiceInteractiveMessage({ body: prompt, options });
+
+            if (interactive) {
+              ctx.replies.push({
+                text: summarizeOutboundInteractive(interactive),
+                interactive
+              });
+            } else {
+              const lines = options.map((o, i) => `${i + 1}. ${o.label ?? o.value ?? "Opción"}`);
+              ctx.replies.push({
+                text: [prompt, ...lines].join("\n")
+              });
+            }
           } else {
             ctx.replies.push({
               text: buildConfirmationSummary(ctx.graph.fields, ctx.variables),

@@ -1,12 +1,13 @@
 import { MessageIngestService } from "../conversations/message-ingest.service.js";
 import { responsePipelineService } from "../runtime/response-pipeline.service.js";
-import { WhatsAppClient, WhatsAppSendError } from "../channel/whatsapp.client.js";
 import { TenantResolverService } from "../tenants/tenant-resolver.service.js";
 import { flowOrchestratorService } from "../flows/flow-orchestrator.service.js";
 import { ContentType } from "@prisma/client";
 import { messageMediaService } from "../conversations/message-media.service.js";
 import { inboundAudioService } from "../conversations/inbound-audio.service.js";
 import type { NormalizedIncomingMessage } from "../../types/whatsapp.js";
+import { outboundWhatsAppReplyService } from "../channel/outbound-whatsapp-reply.service.js";
+import { WhatsAppSendError } from "../channel/whatsapp.client.js";
 
 function resolveInboundContentType(message: NormalizedIncomingMessage): ContentType | undefined {
   if (!message.media) return undefined;
@@ -15,11 +16,18 @@ function resolveInboundContentType(message: NormalizedIncomingMessage): ContentT
   return ContentType.DOCUMENT;
 }
 
+function resolvePipelineText(message: NormalizedIncomingMessage): string {
+  if (message.interactiveSelection?.id) {
+    return message.interactiveSelection.id;
+  }
+
+  return message.text;
+}
+
 export class MessageRouterService {
   constructor(
     private readonly tenantResolver = new TenantResolverService(),
-    private readonly messageIngestService = new MessageIngestService(),
-    private readonly whatsAppClient = new WhatsAppClient()
+    private readonly messageIngestService = new MessageIngestService()
   ) {}
 
   async route(message: NormalizedIncomingMessage): Promise<void> {
@@ -47,7 +55,10 @@ export class MessageRouterService {
         inboundCreatedAt: ingested.message.createdAt,
         customerPhone: ingested.customer.phoneNumber,
         phoneNumberId: resolved.channel.phoneNumberId,
-        accessToken: resolved.accessToken
+        accessToken: resolved.accessToken,
+        tenantId: resolved.tenant.id,
+        customerId: ingested.customer.id,
+        botPhone: resolved.channel.phoneNumber
       });
       return;
     }
@@ -73,6 +84,8 @@ export class MessageRouterService {
       });
     }
 
+    pipelineText = resolvePipelineText({ ...message, text: pipelineText });
+
     const flowResult = await flowOrchestratorService.handleInbound({
       tenantId: resolved.tenant.id,
       tenantName: resolved.tenant.name,
@@ -93,22 +106,15 @@ export class MessageRouterService {
 
     if (flowResult.handled) {
       for (const reply of flowResult.replies) {
-        const outbound = await this.messageIngestService.ingestBotMessage({
+        await outboundWhatsAppReplyService.deliverBotReply({
           tenantId: resolved.tenant.id,
           conversationId: ingested.conversation.id,
           customerId: ingested.customer.id,
           botPhone: resolved.channel.phoneNumber,
           customerPhone: ingested.customer.phoneNumber,
-          text: reply.text,
-          aiGenerated: reply.aiGenerated ?? false
-        });
-
-        await this.sendBotReply({
           phoneNumberId: resolved.channel.phoneNumberId,
           accessToken: resolved.accessToken,
-          to: ingested.customer.phoneNumber,
-          text: reply.text,
-          outboundMessageId: outbound.id
+          reply
         });
       }
       return;
@@ -152,11 +158,15 @@ export class MessageRouterService {
     });
 
     if (result.reply && result.outboundMessageId) {
-      await this.sendBotReply({
+      await outboundWhatsAppReplyService.deliverBotReply({
+        tenantId: resolved.tenant.id,
+        conversationId: ingested.conversation.id,
+        customerId: ingested.customer.id,
+        botPhone: resolved.channel.phoneNumber,
+        customerPhone: ingested.customer.phoneNumber,
         phoneNumberId: resolved.channel.phoneNumberId,
         accessToken: resolved.accessToken,
-        to: ingested.customer.phoneNumber,
-        text: result.reply,
+        reply: { text: result.reply },
         outboundMessageId: result.outboundMessageId
       });
     }
@@ -168,6 +178,9 @@ export class MessageRouterService {
     customerPhone: string;
     phoneNumberId: string;
     accessToken: string;
+    tenantId: string;
+    customerId: string;
+    botPhone: string;
   }) {
     const pending = await this.messageIngestService.findPendingBotOutbound({
       conversationId: input.conversationId,
@@ -179,36 +192,17 @@ export class MessageRouterService {
 
     await this.messageIngestService.markDeliveryPending(pending.id);
 
-    await this.sendBotReply({
+    await outboundWhatsAppReplyService.deliverBotReply({
+      tenantId: input.tenantId,
+      conversationId: input.conversationId,
+      customerId: input.customerId,
+      botPhone: input.botPhone,
+      customerPhone: input.customerPhone,
       phoneNumberId: input.phoneNumberId,
       accessToken: input.accessToken,
-      to: input.customerPhone,
-      text: pending.contentText,
+      reply: { text: pending.contentText },
       outboundMessageId: pending.id
     });
-  }
-
-  private async sendBotReply(input: {
-    phoneNumberId: string;
-    accessToken: string;
-    to: string;
-    text: string;
-    outboundMessageId: string;
-  }) {
-    try {
-      const wamid = await this.whatsAppClient.sendTextMessage({
-        phoneNumberId: input.phoneNumberId,
-        accessToken: input.accessToken,
-        to: input.to,
-        text: input.text
-      });
-      if (wamid) {
-        await this.messageIngestService.setMessageExternalId(input.outboundMessageId, wamid);
-      }
-    } catch (error) {
-      await this.messageIngestService.markDeliveryFailed(input.outboundMessageId);
-      throw error;
-    }
   }
 }
 

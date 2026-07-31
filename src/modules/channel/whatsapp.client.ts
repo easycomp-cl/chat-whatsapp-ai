@@ -117,6 +117,114 @@ export class WhatsAppClient {
     return json.messages?.[0]?.id ?? null;
   }
 
+  async sendInteractiveButtonMessage(params: {
+    phoneNumberId: string;
+    accessToken: string;
+    to: string;
+    body: string;
+    buttons: Array<{ id: string; title: string }>;
+    replyToExternalId?: string;
+  }): Promise<string | null> {
+    const endpoint = `https://graph.facebook.com/${env.WHATSAPP_GRAPH_VERSION}/${params.phoneNumberId}/messages`;
+
+    const payload: Record<string, unknown> = {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: params.to,
+      type: "interactive",
+      interactive: {
+        type: "button",
+        body: { text: params.body },
+        action: {
+          buttons: params.buttons.map((button) => ({
+            type: "reply",
+            reply: {
+              id: button.id,
+              title: button.title
+            }
+          }))
+        }
+      }
+    };
+
+    if (params.replyToExternalId) {
+      payload.context = { message_id: params.replyToExternalId };
+    }
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${params.accessToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      throw await this.buildSendError(response, params.to, params.phoneNumberId, "send");
+    }
+
+    const json = (await response.json()) as SendMessageResponse;
+    return json.messages?.[0]?.id ?? null;
+  }
+
+  async sendInteractiveListMessage(params: {
+    phoneNumberId: string;
+    accessToken: string;
+    to: string;
+    body: string;
+    buttonText: string;
+    sections: Array<{
+      title?: string;
+      rows: Array<{ id: string; title: string; description?: string }>;
+    }>;
+    replyToExternalId?: string;
+  }): Promise<string | null> {
+    const endpoint = `https://graph.facebook.com/${env.WHATSAPP_GRAPH_VERSION}/${params.phoneNumberId}/messages`;
+
+    const payload: Record<string, unknown> = {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: params.to,
+      type: "interactive",
+      interactive: {
+        type: "list",
+        body: { text: params.body },
+        action: {
+          button: params.buttonText,
+          sections: params.sections.map((section) => ({
+            ...(section.title ? { title: section.title } : {}),
+            rows: section.rows.map((row) => ({
+              id: row.id,
+              title: row.title,
+              ...(row.description ? { description: row.description } : {})
+            }))
+          }))
+        }
+      }
+    };
+
+    if (params.replyToExternalId) {
+      payload.context = { message_id: params.replyToExternalId };
+    }
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${params.accessToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      throw await this.buildSendError(response, params.to, params.phoneNumberId, "send");
+    }
+
+    const json = (await response.json()) as SendMessageResponse;
+    return json.messages?.[0]?.id ?? null;
+  }
+
   async editTextMessage(params: EditWhatsAppTextParams): Promise<void> {
     const endpoint = `https://graph.facebook.com/${env.WHATSAPP_GRAPH_VERSION}/${params.phoneNumberId}/messages`;
 

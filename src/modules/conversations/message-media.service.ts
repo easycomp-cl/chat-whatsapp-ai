@@ -4,6 +4,11 @@ import { logger } from "../../lib/logger.js";
 import { WhatsAppClient } from "../channel/whatsapp.client.js";
 import type { IncomingMediaAttachment } from "../../types/whatsapp.js";
 import {
+  mergeInboundMediaIngestFailed,
+  mergeInboundMediaIngestSucceeded,
+  readInboundMediaIngestState
+} from "../../utils/inbound-media-ingest-state.js";
+import {
   buildMessageMediaStoragePath,
   contentTypeFromWhatsAppMediaType,
   defaultFilenameForMime,
@@ -18,6 +23,22 @@ import { prepareAudioBufferForWhatsApp } from "./audio-transcode.service.js";
 import { MessageMediaHttpError } from "./message-media.errors.js";
 
 export { MessageMediaHttpError } from "./message-media.errors.js";
+
+const INBOUND_MEDIA_RETRY_DELAYS_MS = [1_000, 2_500, 5_000] as const;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function formatInboundMediaError(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message.trim();
+  }
+
+  return "No se pudo descargar el archivo adjunto de WhatsApp";
+}
 
 function rethrowMediaUploadError(error: unknown): never {
   if (error instanceof Error && error.message.startsWith("Error subiendo media de chat a Supabase:")) {
@@ -44,6 +65,33 @@ export class MessageMediaService {
   constructor(private readonly whatsAppClient = new WhatsAppClient()) {}
 
   async ingestInboundFromWhatsApp(input: {
+    tenantId: string;
+    conversationId: string;
+    messageId: string;
+    accessToken: string;
+    media: IncomingMediaAttachment;
+  }) {
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt < INBOUND_MEDIA_RETRY_DELAYS_MS.length; attempt += 1) {
+      try {
+        await this.ingestInboundFromWhatsAppOnce(input);
+        await this.clearInboundMediaIngestFailed(input.messageId);
+        return;
+      } catch (error) {
+        lastError = error;
+        if (attempt < INBOUND_MEDIA_RETRY_DELAYS_MS.length - 1) {
+          await sleep(INBOUND_MEDIA_RETRY_DELAYS_MS[attempt] ?? 5_000);
+        }
+      }
+    }
+
+    const errorMessage = formatInboundMediaError(lastError);
+    await this.markInboundMediaIngestFailed(input.messageId, errorMessage);
+    throw lastError instanceof Error ? lastError : new Error(errorMessage);
+  }
+
+  private async ingestInboundFromWhatsAppOnce(input: {
     tenantId: string;
     conversationId: string;
     messageId: string;
@@ -92,7 +140,48 @@ export class MessageMediaService {
         mediaMimeType: mimeType,
         mediaFilename: filename,
         mediaFileSize: downloaded.buffer.length,
-        whatsappMediaId: input.media.mediaId
+        whatsappMediaId: input.media.mediaId,
+        rawPayloadJson: mergeInboundMediaIngestSucceeded(
+          (
+            await prisma.message.findUnique({
+              where: { id: input.messageId },
+              select: { rawPayloadJson: true }
+            })
+          )?.rawPayloadJson
+        )
+      }
+    });
+  }
+
+  private async markInboundMediaIngestFailed(messageId: string, errorMessage: string) {
+    const message = await prisma.message.findUnique({
+      where: { id: messageId },
+      select: { rawPayloadJson: true }
+    });
+
+    await prisma.message.update({
+      where: { id: messageId },
+      data: {
+        rawPayloadJson: mergeInboundMediaIngestFailed(message?.rawPayloadJson, errorMessage)
+      }
+    });
+  }
+
+  private async clearInboundMediaIngestFailed(messageId: string) {
+    const message = await prisma.message.findUnique({
+      where: { id: messageId },
+      select: { rawPayloadJson: true }
+    });
+
+    const currentState = readInboundMediaIngestState(message?.rawPayloadJson);
+    if (!currentState.failed) {
+      return;
+    }
+
+    await prisma.message.update({
+      where: { id: messageId },
+      data: {
+        rawPayloadJson: mergeInboundMediaIngestSucceeded(message?.rawPayloadJson)
       }
     });
   }
@@ -323,8 +412,13 @@ export class MessageMediaService {
       await this.ingestInboundFromWhatsApp(input);
     } catch (error) {
       logger.error(
-        { err: error, messageId: input.messageId, mediaId: input.media.mediaId },
-        "Failed to download/store inbound WhatsApp media"
+        {
+          err: error,
+          messageId: input.messageId,
+          mediaId: input.media.mediaId,
+          attempts: INBOUND_MEDIA_RETRY_DELAYS_MS.length
+        },
+        "Failed to download/store inbound WhatsApp media after retries"
       );
     }
   }

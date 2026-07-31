@@ -20,7 +20,8 @@
     "seed:knowledge": "tsx scripts/seed-knowledge-fixtures.ts",
     "refresh:knowledge": "tsx scripts/refresh-knowledge-content.ts",
     "test": "vitest run",
-    "test:flow-webhook": "tsx scripts/test-flow-webhook-e2e.ts"
+    "test:flow-webhook": "tsx scripts/test-flow-webhook-e2e.ts",
+    "verify:delivery-status": "tsx scripts/verify-whatsapp-delivery-status.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",

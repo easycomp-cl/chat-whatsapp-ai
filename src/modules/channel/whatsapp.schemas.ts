@@ -77,7 +77,8 @@ const imageMessageSchema = z.object({
   from: z.string(),
   timestamp: z.string().optional(),
   type: z.literal("image"),
-  image: mediaObjectSchema
+  image: mediaObjectSchema,
+  context: contextSchema.optional()
 });
 
 const documentMessageSchema = z.object({
@@ -85,7 +86,8 @@ const documentMessageSchema = z.object({
   from: z.string(),
   timestamp: z.string().optional(),
   type: z.literal("document"),
-  document: mediaObjectSchema
+  document: mediaObjectSchema,
+  context: contextSchema.optional()
 });
 
 const audioMessageSchema = z.object({
@@ -106,10 +108,36 @@ const voiceMessageSchema = z.object({
   context: contextSchema.optional()
 });
 
+const interactiveInboundMessageSchema = z.object({
+  id: z.string(),
+  from: z.string(),
+  timestamp: z.string().optional(),
+  type: z.literal("interactive"),
+  interactive: z.discriminatedUnion("type", [
+    z.object({
+      type: z.literal("button_reply"),
+      button_reply: z.object({
+        id: z.string(),
+        title: z.string()
+      })
+    }),
+    z.object({
+      type: z.literal("list_reply"),
+      list_reply: z.object({
+        id: z.string(),
+        title: z.string(),
+        description: z.string().optional()
+      })
+    })
+  ]),
+  context: contextSchema.optional()
+});
+
 const inboundMessageSchema = z.union([
   reactionMessageSchema,
   editMessageSchema,
   revokeMessageSchema,
+  interactiveInboundMessageSchema,
   imageMessageSchema,
   documentMessageSchema,
   audioMessageSchema,
@@ -147,7 +175,21 @@ export const whatsappWebhookSchema = z.object({
                   id: z.string(),
                   status: z.string(),
                   timestamp: z.string().optional(),
-                  recipient_id: z.string().optional()
+                  recipient_id: z.string().optional(),
+                  errors: z
+                    .array(
+                      z.object({
+                        code: z.number().optional(),
+                        title: z.string().optional(),
+                        message: z.string().optional(),
+                        error_data: z
+                          .object({
+                            details: z.string().optional()
+                          })
+                          .optional()
+                      })
+                    )
+                    .optional()
                 })
               )
               .optional()

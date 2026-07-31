@@ -1,6 +1,6 @@
 import { prisma } from "../../lib/prisma.js";
 import type { IncomingMediaAttachment } from "../../types/whatsapp.js";
-import { flowEngineService } from "./flow-engine.service.js";
+import { flowEngineService, type FlowEngineReply } from "./flow-engine.service.js";
 
 export interface FlowOrchestratorInboundInput {
   tenantId: string;
@@ -18,10 +18,7 @@ export interface FlowOrchestratorInboundInput {
   handoffMessage?: string;
 }
 
-export interface FlowOrchestratorReply {
-  text: string;
-  aiGenerated?: boolean;
-}
+export type FlowOrchestratorReply = FlowEngineReply;
 
 export interface FlowOrchestratorResult {
   handled: boolean;

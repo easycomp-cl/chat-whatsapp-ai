@@ -444,6 +444,8 @@ model Message {
   customerRevokedAt   DateTime?
   externalId              String?
   whatsappDeliveryStatus  WhatsappDeliveryStatus?
+  whatsappDeliveryErrorCode Int?
+  whatsappDeliveryErrorMessage String?
   aiGenerated       Boolean          @default(false)
   replyToMessageId  String?
   quotedText        String?

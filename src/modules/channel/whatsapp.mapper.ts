@@ -6,10 +6,36 @@ import type {
   NormalizedIncomingEdit,
   NormalizedIncomingRevoke,
   NormalizedMessageStatus,
-  NormalizedWebhookEvent
+  NormalizedWebhookEvent,
+  ReplyContext
 } from "../../types/whatsapp.js";
+import { parseWhatsappDeliveryErrors } from "../../utils/whatsapp-delivery-error.js";
 
 const META_STATUS_VALUES = new Set(["sent", "delivered", "read", "failed"]);
+
+function readReplyContext(message: {
+  context?: { id: string; from?: string };
+}): ReplyContext | undefined {
+  if (!message.context?.id) {
+    return undefined;
+  }
+
+  return {
+    externalMessageId: message.context.id,
+    ...(message.context.from ? { fromPhone: message.context.from } : {})
+  };
+}
+
+function withReplyContext<T extends NormalizedIncomingMessage>(
+  item: T,
+  message: { context?: { id: string; from?: string } }
+): T {
+  const replyContext = readReplyContext(message);
+  if (replyContext) {
+    item.replyContext = replyContext;
+  }
+  return item;
+}
 
 export function normalizeWebhookEvents(payload: unknown): NormalizedWebhookEvent[] {
   const parsed = whatsappWebhookSchema.parse(payload);
@@ -28,6 +54,7 @@ export function normalizeWebhookEvents(payload: unknown): NormalizedWebhookEvent
             continue;
           }
 
+          const deliveryError = parseWhatsappDeliveryErrors(statusRow.errors) ?? undefined;
           const item: NormalizedMessageStatus = {
             kind: "status",
             externalMessageId: statusRow.id,
@@ -37,7 +64,8 @@ export function normalizeWebhookEvents(payload: unknown): NormalizedWebhookEvent
             timestamp: statusRow.timestamp
               ? new Date(Number(statusRow.timestamp) * 1000)
               : new Date(),
-            rawPayload: payload
+            rawPayload: payload,
+            ...(deliveryError ? { deliveryError } : {})
           };
           if (toPhoneDisplay) item.toPhoneDisplay = toPhoneDisplay;
           normalized.push(item);
@@ -110,6 +138,50 @@ export function normalizeWebhookEvents(payload: unknown): NormalizedWebhookEvent
           continue;
         }
 
+        if (message.type === "interactive" && "interactive" in message) {
+          if (message.interactive.type === "button_reply") {
+            const item: NormalizedIncomingMessage = {
+              kind: "message",
+              externalMessageId: message.id,
+              fromPhone: message.from,
+              toPhoneNumberId,
+              text: message.interactive.button_reply.title,
+              timestamp,
+              interactiveSelection: {
+                id: message.interactive.button_reply.id,
+                title: message.interactive.button_reply.title,
+                type: "button"
+              },
+              rawPayload: payload
+            };
+            if (fromName) item.fromName = fromName;
+            if (toPhoneDisplay) item.toPhoneDisplay = toPhoneDisplay;
+            normalized.push(withReplyContext(item, message));
+            continue;
+          }
+
+          if (message.interactive.type === "list_reply") {
+            const item: NormalizedIncomingMessage = {
+              kind: "message",
+              externalMessageId: message.id,
+              fromPhone: message.from,
+              toPhoneNumberId,
+              text: message.interactive.list_reply.title,
+              timestamp,
+              interactiveSelection: {
+                id: message.interactive.list_reply.id,
+                title: message.interactive.list_reply.title,
+                type: "list"
+              },
+              rawPayload: payload
+            };
+            if (fromName) item.fromName = fromName;
+            if (toPhoneDisplay) item.toPhoneDisplay = toPhoneDisplay;
+            normalized.push(withReplyContext(item, message));
+            continue;
+          }
+        }
+
         if (message.type === "image" && "image" in message) {
           const caption = message.image.caption?.trim();
           const item: NormalizedIncomingMessage = {
@@ -129,7 +201,7 @@ export function normalizeWebhookEvents(payload: unknown): NormalizedWebhookEvent
           };
           if (fromName) item.fromName = fromName;
           if (toPhoneDisplay) item.toPhoneDisplay = toPhoneDisplay;
-          normalized.push(item);
+          normalized.push(withReplyContext(item, message));
           continue;
         }
 
@@ -153,7 +225,7 @@ export function normalizeWebhookEvents(payload: unknown): NormalizedWebhookEvent
           };
           if (fromName) item.fromName = fromName;
           if (toPhoneDisplay) item.toPhoneDisplay = toPhoneDisplay;
-          normalized.push(item);
+          normalized.push(withReplyContext(item, message));
           continue;
         }
 
@@ -178,13 +250,7 @@ export function normalizeWebhookEvents(payload: unknown): NormalizedWebhookEvent
           };
           if (fromName) item.fromName = fromName;
           if (toPhoneDisplay) item.toPhoneDisplay = toPhoneDisplay;
-          if ("context" in message && message.context?.id) {
-            item.replyContext = {
-              externalMessageId: message.context.id,
-              ...(message.context.from ? { fromPhone: message.context.from } : {})
-            };
-          }
-          normalized.push(item);
+          normalized.push(withReplyContext(item, message));
           continue;
         }
 
@@ -208,14 +274,7 @@ export function normalizeWebhookEvents(payload: unknown): NormalizedWebhookEvent
         };
         if (fromName) item.fromName = fromName;
         if (toPhoneDisplay) item.toPhoneDisplay = toPhoneDisplay;
-        if ("context" in message && message.context?.id) {
-          item.replyContext = {
-            externalMessageId: message.context.id,
-            ...(message.context.from ? { fromPhone: message.context.from } : {})
-          };
-        }
-
-        normalized.push(item);
+        normalized.push(withReplyContext(item, message));
       }
     }
   }

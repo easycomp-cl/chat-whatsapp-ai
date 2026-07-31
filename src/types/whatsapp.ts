@@ -22,6 +22,11 @@ export type NormalizedIncomingMessage = {
   text: string;
   timestamp: Date;
   replyContext?: ReplyContext;
+  interactiveSelection?: {
+    id: string;
+    title: string;
+    type: "button" | "list";
+  };
   media?: IncomingMediaAttachment;
   rawPayload: unknown;
 };
@@ -64,6 +69,12 @@ export type NormalizedIncomingRevoke = {
   rawPayload: unknown;
 };
 
+export type WhatsappDeliveryErrorDetail = {
+  code: number;
+  title: string;
+  message: string;
+};
+
 export type NormalizedMessageStatus = {
   kind: "status";
   externalMessageId: string;
@@ -72,6 +83,7 @@ export type NormalizedMessageStatus = {
   toPhoneDisplay?: string;
   status: "sent" | "delivered" | "read" | "failed";
   timestamp: Date;
+  deliveryError?: WhatsappDeliveryErrorDetail;
   rawPayload: unknown;
 };
 

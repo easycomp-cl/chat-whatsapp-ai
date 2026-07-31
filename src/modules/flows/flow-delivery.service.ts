@@ -1,16 +1,11 @@
 import { prisma } from "../../lib/prisma.js";
-import { WhatsAppClient } from "../channel/whatsapp.client.js";
-import { MessageIngestService } from "../conversations/message-ingest.service.js";
 import { TenantResolverService } from "../tenants/tenant-resolver.service.js";
 import type { FlowEngineReply } from "./flow-engine.service.js";
 import { FlowHttpError } from "./flows.errors.js";
+import { outboundWhatsAppReplyService } from "../channel/outbound-whatsapp-reply.service.js";
 
 export class FlowDeliveryService {
-  constructor(
-    private readonly tenantResolver = new TenantResolverService(),
-    private readonly messageIngestService = new MessageIngestService(),
-    private readonly whatsAppClient = new WhatsAppClient()
-  ) {}
+  constructor(private readonly tenantResolver = new TenantResolverService()) {}
 
   async deliverBotReplies(input: {
     tenantId: string;
@@ -49,28 +44,22 @@ export class FlowDeliveryService {
     const sent: Array<{ messageId: string; externalId: string | null; text: string }> = [];
 
     for (const reply of input.replies) {
-      const outbound = await this.messageIngestService.ingestBotMessage({
+      const delivered = await outboundWhatsAppReplyService.deliverBotReply({
         tenantId: input.tenantId,
         conversationId: conversation.id,
         customerId: conversation.customerId,
         botPhone: channel.phoneNumber,
         customerPhone: conversation.customer.phoneNumber,
-        text: reply.text,
-        aiGenerated: reply.aiGenerated ?? false
-      });
-
-      const externalId = await this.whatsAppClient.sendTextMessage({
         phoneNumberId: channel.phoneNumberId,
         accessToken,
-        to: conversation.customer.phoneNumber,
-        text: reply.text
+        reply
       });
 
-      if (externalId) {
-        await this.messageIngestService.setMessageExternalId(outbound.id, externalId);
-      }
-
-      sent.push({ messageId: outbound.id, externalId, text: reply.text });
+      sent.push({
+        messageId: delivered.messageId,
+        externalId: delivered.externalId,
+        text: reply.text
+      });
     }
 
     return sent;

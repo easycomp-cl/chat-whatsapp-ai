@@ -12,6 +12,7 @@
 |---------|---------------|-----------|
 | Inbox optimizado | ✅ | `20260713010000_inbox_performance` |
 | Delivery `DELIVERED` / `READ` | ✅ | `20260728180000_whatsapp_delivery_delivered_read` |
+| Errores delivery `FAILED` (detalle Meta) | ✅ | `20260731180000_whatsapp_delivery_error` |
 | Edit/revoke mensajes del cliente | ✅ | `20260728140000_customer_message_changes` |
 | `PATCH /messages/:id` edición saliente | ✅ cerrado → **501** | — |
 | Perfil CRM contacto | ✅ | `20260728220000_customer_profile_team_roles` |
@@ -23,6 +24,7 @@
 2. Esperar Action verde + health `GET /health`.
 3. Verificar endpoints abajo (migraciones se aplican al arrancar el contenedor).
 4. No tocar `BOT_API_BASE_URL` / `BOT_API_SECRET` en Vercel.
+5. **Ticks WhatsApp:** `npm run verify:delivery-status` — ver [`docs/ops/verify-whatsapp-delivery-status-staging.md`](./ops/verify-whatsapp-delivery-status-staging.md).
 
 ## Verificación post-deploy
 

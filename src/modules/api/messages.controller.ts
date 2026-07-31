@@ -22,6 +22,7 @@ import {
   validateOutboundMediaSize
 } from "../conversations/message-media.utils.js";
 import { truncateQuotedText } from "../../utils/quoted-text.js";
+import { parseGraphApiErrorBody } from "../../utils/whatsapp-delivery-error.js";
 import { buildMediaMessageResponse } from "./message-media.controller.js";
 
 const sendMessageSchema = z.object({
@@ -278,7 +279,9 @@ export async function sendConversationMediaMessage(req: Request, res: Response) 
       await messageIngest.setMessageExternalId(message.id, wamid);
     }
   } catch (error) {
-    await messageIngest.markDeliveryFailed(message.id);
+    const deliveryError =
+      error instanceof WhatsAppSendError ? parseGraphApiErrorBody(error.body) : undefined;
+    await messageIngest.markDeliveryFailed(message.id, deliveryError);
     if (error instanceof WhatsAppSendError) {
       res.status(error.isTokenExpired ? 503 : 502).json({
         error: error.message,
@@ -373,7 +376,9 @@ export async function resendOutboundMessage(req: Request, res: Response) {
       });
     }
   } catch (error) {
-    await messageIngest.markDeliveryFailed(messageId);
+    const deliveryError =
+      error instanceof WhatsAppSendError ? parseGraphApiErrorBody(error.body) : undefined;
+    await messageIngest.markDeliveryFailed(messageId, deliveryError);
     if (error instanceof WhatsAppSendError) {
       res.status(error.isTokenExpired ? 503 : 502).json({
         error: error.message,

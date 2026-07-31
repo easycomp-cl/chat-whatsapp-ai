@@ -14,7 +14,8 @@ export class DeliveryStatusRouterService {
 
     const result = await this.messageIngestService.applyOutboundDeliveryStatus({
       externalMessageId: status.externalMessageId,
-      status: mapped
+      status: mapped,
+      ...(status.deliveryError ? { deliveryError: status.deliveryError } : {})
     });
 
     if (!result.updated && result.reason === "not_found") {

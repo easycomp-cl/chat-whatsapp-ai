@@ -54,8 +54,9 @@ type ChatMessage = {
   conversation_id: string;
   direction: "INBOUND" | "OUTBOUND";
   sender_type: "CUSTOMER" | "BOT" | "HUMAN" | "SYSTEM";
-  content_text: string;          // texto, caption, o placeholder "[Imagen]" / "[Documento]"
+  content_text: string;          // texto, caption, placeholder "[Imagen]" / "[Documento]" / "[Audio]", o transcripción
   content_type: ContentType;
+  audio_transcript: string | null; // solo audios; ver whatsapp-audio-ui.md
   external_id: string | null;
   whatsapp_delivery_status: "PENDING" | "SENT" | "DELIVERED" | "READ" | "FAILED" | null;
   reply_to_message_id: string | null;
@@ -75,6 +76,8 @@ type ChatMessage = {
 | `IMAGE` | `false` | Placeholder “Imagen no disponible” (falló descarga backend) |
 | `DOCUMENT` | `true` | Tarjeta con icono PDF/doc + `filename` + enlace descarga |
 | `DOCUMENT` | `false` | Placeholder con `content_text` o `"[Documento]"` |
+| `AUDIO` | `true` | Reproductor + transcripción — ver [whatsapp-audio-ui.md](./whatsapp-audio-ui.md) |
+| `AUDIO` | `false` | Placeholder “Audio no disponible” |
 
 ---
 
@@ -376,8 +379,10 @@ curl -X POST "https://API_BASE/conversations/CONV_ID/messages/media" \
 
 - Editar mensajes con media (backend: solo texto editable; media no).
 - Subida directa a Supabase desde el browser.
-- Audio / video / stickers de WhatsApp (backend aún no expone).
+- Video / stickers de WhatsApp (backend aún no expone).
 - Galería lightbox avanzada (opcional post-MVP).
+
+**Audio / notas de voz:** ver [whatsapp-audio-ui.md](./whatsapp-audio-ui.md) (backend listo desde `be0ea5d`).
 
 ---
 

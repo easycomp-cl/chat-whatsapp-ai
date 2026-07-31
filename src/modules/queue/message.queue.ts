@@ -25,12 +25,20 @@ export function getMessageQueue(): Queue<MessageJobData> {
   return messageQueue;
 }
 
+function sanitizeQueueJobId(value: string): string {
+  return value.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+export { sanitizeQueueJobId };
+
 export async function enqueueWebhookEvent(event: NormalizedWebhookEvent) {
   const queue = getMessageQueue();
   const jobId =
     event.kind === "status"
-      ? `status:${event.externalMessageId}:${event.status}:${event.timestamp.getTime()}`
-      : event.externalMessageId;
+      ? sanitizeQueueJobId(
+          `status-${event.externalMessageId}-${event.status}-${event.timestamp.getTime()}`
+        )
+      : sanitizeQueueJobId(event.externalMessageId);
 
   await queue.add("process", { event }, { jobId });
 }

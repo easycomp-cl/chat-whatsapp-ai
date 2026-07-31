@@ -1,4 +1,7 @@
 import type { ContentType, Message, SenderType, WhatsappDeliveryStatus } from "@prisma/client";
+import { readInboundMediaIngestState } from "../../utils/inbound-media-ingest-state.js";
+import { readStoredOutboundInteractive } from "../../utils/whatsapp-interactive.js";
+import type { OutboundInteractiveMessage } from "../../utils/whatsapp-interactive.js";
 
 export type SerializedMessageMedia = {
   has_media: boolean;
@@ -25,6 +28,11 @@ export type SerializedMessage = {
   customerRevokedAt: Date | null;
   external_id: string | null;
   whatsapp_delivery_status: WhatsappDeliveryStatus | null;
+  whatsapp_delivery_error_code: number | null;
+  whatsapp_delivery_error_message: string | null;
+  media_ingest_failed: boolean;
+  media_ingest_error: string | null;
+  interactive: OutboundInteractiveMessage | null;
   aiGenerated: boolean;
   reply_to_message_id: string | null;
   quoted_text: string | null;
@@ -36,6 +44,7 @@ export type SerializedMessage = {
 
 export function serializeMessage(message: Message): SerializedMessage {
   const hasMedia = Boolean(message.mediaStoragePath && message.mediaStorageBucket);
+  const mediaIngest = readInboundMediaIngestState(message.rawPayloadJson);
 
   return {
     id: message.id,
@@ -54,6 +63,11 @@ export function serializeMessage(message: Message): SerializedMessage {
     customerRevokedAt: message.customerRevokedAt,
     external_id: message.externalId,
     whatsapp_delivery_status: message.whatsappDeliveryStatus,
+    whatsapp_delivery_error_code: message.whatsappDeliveryErrorCode,
+    whatsapp_delivery_error_message: message.whatsappDeliveryErrorMessage,
+    media_ingest_failed: mediaIngest.failed,
+    media_ingest_error: mediaIngest.error,
+    interactive: readStoredOutboundInteractive(message.rawPayloadJson),
     aiGenerated: message.aiGenerated,
     reply_to_message_id: message.replyToMessageId,
     quoted_text: message.quotedText,

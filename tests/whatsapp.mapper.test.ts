@@ -305,6 +305,113 @@ describe("normalizeWebhookEvents", () => {
     });
   });
 
+  it("normalizes image and document messages with reply context", () => {
+    const imageEvents = normalizeWebhookEvents({
+      entry: [
+        {
+          changes: [
+            {
+              value: {
+                metadata: { phone_number_id: "123" },
+                messages: [
+                  {
+                    id: "wamid.image-reply",
+                    from: "56911111111",
+                    type: "image",
+                    image: { id: "media-img-1", mime_type: "image/jpeg" },
+                    context: { id: "wamid.parent", from: "56911111111" }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(imageEvents[0]).toMatchObject({
+      kind: "message",
+      media: { type: "image", mediaId: "media-img-1" },
+      replyContext: { externalMessageId: "wamid.parent", fromPhone: "56911111111" }
+    });
+
+    const documentEvents = normalizeWebhookEvents({
+      entry: [
+        {
+          changes: [
+            {
+              value: {
+                metadata: { phone_number_id: "123" },
+                messages: [
+                  {
+                    id: "wamid.doc-reply",
+                    from: "56911111111",
+                    type: "document",
+                    document: {
+                      id: "media-doc-1",
+                      mime_type: "application/pdf",
+                      filename: "cotizacion.pdf"
+                    },
+                    context: { id: "wamid.parent-doc" }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(documentEvents[0]).toMatchObject({
+      kind: "message",
+      media: { type: "document", mediaId: "media-doc-1", filename: "cotizacion.pdf" },
+      replyContext: { externalMessageId: "wamid.parent-doc" }
+    });
+  });
+
+  it("normalizes failed delivery status with Meta error details", () => {
+    const events = normalizeWebhookEvents({
+      entry: [
+        {
+          changes: [
+            {
+              value: {
+                metadata: { phone_number_id: "123" },
+                statuses: [
+                  {
+                    id: "wamid.outbound-failed",
+                    status: "failed",
+                    timestamp: "1717888801",
+                    recipient_id: "56911111111",
+                    errors: [
+                      {
+                        code: 131026,
+                        title: "Message undeliverable",
+                        message: "Message failed to send because of an unknown error."
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      kind: "status",
+      externalMessageId: "wamid.outbound-failed",
+      status: "failed",
+      deliveryError: {
+        code: 131026,
+        title: "Message undeliverable",
+        message: "Message failed to send because of an unknown error."
+      }
+    });
+  });
+
   it("normalizes outbound delivery status webhooks", () => {
     const events = normalizeWebhookEvents({
       entry: [
