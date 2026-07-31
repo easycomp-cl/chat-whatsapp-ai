@@ -4,6 +4,7 @@ import {
   contentTypeFromMime,
   isEnoentError,
   isMissingMediaStorageError,
+  needsWhatsAppAudioTranscode,
   sanitizeFilename,
   validateOutboundMediaMime,
   validateOutboundMediaSize
@@ -22,6 +23,8 @@ describe("message-media.utils", () => {
         new Error("No se pudo leer media de chat: Object not found")
       )
     ).toBe(true);
+    expect(needsWhatsAppAudioTranscode("audio/webm")).toBe(true);
+    expect(needsWhatsAppAudioTranscode("audio/ogg")).toBe(false);
   });
 
   it("detects image, audio and document mime types", () => {

@@ -340,8 +340,14 @@ export class WhatsAppClient {
       message.includes("not in allowed list") ||
       message.includes("lista de autorizados");
 
+    const isUnsupportedMediaType =
+      details.error?.code === 100 &&
+      (message.includes("received file of type") || message.includes("param file must be"));
+
     const action = isTokenExpired
       ? "El token de WhatsApp/Meta expiró. Genera uno nuevo en Meta Business y actualízalo en Admin > WhatsApp o vía POST /businesses/:id/whatsapp-accounts."
+      : isUnsupportedMediaType
+        ? "WhatsApp no acepta ese formato de archivo. Para notas de voz desde el navegador el backend convierte WebM a OGG; si persiste, reintenta o contacta soporte."
       : isRecipientNotAllowed && to
         ? `Agrega el número ${to} en Meta Developers > WhatsApp > API Setup > lista de números de prueba (modo desarrollo).`
         : actionType === "edit"
@@ -367,6 +373,8 @@ export class WhatsAppClient {
     throw new WhatsAppSendError(
       isTokenExpired
         ? "No se pudo enviar el mensaje porque el token de WhatsApp expiró."
+        : isUnsupportedMediaType
+          ? (details.error?.message ?? "WhatsApp no acepta el formato de audio enviado.")
         : actionType === "edit"
           ? (details.error?.message ?? "No se pudo editar el mensaje en WhatsApp.")
           : `No se pudo enviar el mensaje de WhatsApp. Status ${response.status}.`,

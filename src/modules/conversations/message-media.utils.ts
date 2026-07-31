@@ -52,6 +52,16 @@ export const WHATSAPP_AUDIO_MIME_TYPES = new Set([
   "audio/webm"
 ]);
 
+/** Formatos que Meta acepta directamente al subir media (sin transcodificar). */
+export const WHATSAPP_DIRECT_AUDIO_MIME_TYPES = new Set([
+  "audio/aac",
+  "audio/mp4",
+  "audio/mpeg",
+  "audio/amr",
+  "audio/ogg",
+  "audio/opus"
+]);
+
 export const WHATSAPP_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 export const WHATSAPP_DOCUMENT_MAX_BYTES = 100 * 1024 * 1024;
 export const WHATSAPP_AUDIO_MAX_BYTES = 16 * 1024 * 1024;
@@ -79,6 +89,19 @@ export function extensionFromMime(mimeType: string, fallback = "bin"): string {
 
 function normalizeMimeType(mimeType: string): string {
   return mimeType.split(";")[0]?.trim().toLowerCase() ?? mimeType.toLowerCase();
+}
+
+export function normalizeMediaMimeType(mimeType: string): string {
+  return normalizeMimeType(mimeType);
+}
+
+export function isWhatsAppDirectAudioMime(mimeType: string): boolean {
+  return WHATSAPP_DIRECT_AUDIO_MIME_TYPES.has(normalizeMimeType(mimeType));
+}
+
+export function needsWhatsAppAudioTranscode(mimeType: string): boolean {
+  const normalized = normalizeMimeType(mimeType);
+  return isWhatsAppAudioMime(normalized) && !isWhatsAppDirectAudioMime(normalized);
 }
 
 export function isWhatsAppAudioMime(mimeType: string): boolean {

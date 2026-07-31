@@ -12,17 +12,10 @@ import {
   type MediaContentType
 } from "./message-media.utils.js";
 import { chatMediaStorageService } from "./infrastructure/chat-media-storage.service.js";
+import { prepareAudioBufferForWhatsApp } from "./audio-transcode.service.js";
+import { MessageMediaHttpError } from "./message-media.errors.js";
 
-export class MessageMediaHttpError extends Error {
-  constructor(
-    message: string,
-    readonly statusCode: number,
-    readonly code?: string
-  ) {
-    super(message);
-    this.name = "MessageMediaHttpError";
-  }
-}
+export { MessageMediaHttpError } from "./message-media.errors.js";
 
 function rethrowMediaUploadError(error: unknown): never {
   if (error instanceof Error && error.message.startsWith("Error subiendo media de chat a Supabase:")) {
@@ -165,12 +158,27 @@ export class MessageMediaService {
       rethrowMediaReadError(error);
     }
 
+    let uploadBuffer = buffer;
+    let uploadMimeType = message.mediaMimeType;
+    let uploadFilename = message.mediaFilename ?? "archivo";
+
+    if (message.contentType === ContentType.AUDIO) {
+      const prepared = await prepareAudioBufferForWhatsApp(
+        buffer,
+        message.mediaMimeType ?? "application/octet-stream",
+        message.mediaFilename
+      );
+      uploadBuffer = prepared.buffer;
+      uploadMimeType = prepared.mimeType;
+      uploadFilename = prepared.filename;
+    }
+
     const mediaId = await this.whatsAppClient.uploadMedia({
       phoneNumberId: input.phoneNumberId,
       accessToken: input.accessToken,
-      buffer,
-      mimeType: message.mediaMimeType,
-      filename: message.mediaFilename ?? "archivo"
+      buffer: uploadBuffer,
+      mimeType: uploadMimeType,
+      filename: uploadFilename
     });
 
     const caption = message.contentText.trim();
