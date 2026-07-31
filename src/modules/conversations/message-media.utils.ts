@@ -99,9 +99,82 @@ export function isWhatsAppDirectAudioMime(mimeType: string): boolean {
   return WHATSAPP_DIRECT_AUDIO_MIME_TYPES.has(normalizeMimeType(mimeType));
 }
 
+export function isOggOpusMime(mimeType: string): boolean {
+  const lower = mimeType.toLowerCase();
+  const base = normalizeMediaMimeType(mimeType);
+
+  if (base === "audio/opus") {
+    return true;
+  }
+
+  if (base !== "audio/ogg") {
+    return false;
+  }
+
+  if (lower.includes("codecs=opus") || lower.includes("codecs=\"opus\"")) {
+    return true;
+  }
+
+  // Sin codecs= explícito: asumimos que no es Opus seguro (p. ej. Vorbis).
+  return !lower.includes("codecs=");
+}
+
+export function needsVoiceNoteTranscode(mimeType: string): boolean {
+  return !isOggOpusMime(mimeType);
+}
+
 export function needsWhatsAppAudioTranscode(mimeType: string): boolean {
   const normalized = normalizeMimeType(mimeType);
   return isWhatsAppAudioMime(normalized) && !isWhatsAppDirectAudioMime(normalized);
+}
+
+export function readStoredAsVoiceNote(rawPayloadJson: unknown): boolean | undefined {
+  if (!rawPayloadJson || typeof rawPayloadJson !== "object") {
+    return undefined;
+  }
+
+  const outbound = (rawPayloadJson as { outbound?: { as_voice_note?: unknown } }).outbound;
+  return typeof outbound?.as_voice_note === "boolean" ? outbound.as_voice_note : undefined;
+}
+
+export function resolveOutboundAsVoiceNote(input: {
+  contentType: MediaContentType;
+  explicit?: boolean;
+  storedFlag?: boolean;
+}): boolean {
+  if (input.contentType !== ContentType.AUDIO) {
+    return false;
+  }
+
+  if (input.explicit !== undefined) {
+    return input.explicit;
+  }
+
+  if (input.storedFlag !== undefined) {
+    return input.storedFlag;
+  }
+
+  return true;
+}
+
+export function parseOptionalFormBoolean(value: string | boolean | undefined): boolean | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true" || normalized === "1") {
+    return true;
+  }
+  if (normalized === "false" || normalized === "0") {
+    return false;
+  }
+
+  return undefined;
 }
 
 export function isWhatsAppAudioMime(mimeType: string): boolean {

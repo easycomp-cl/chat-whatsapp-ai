@@ -4,7 +4,11 @@ import {
   contentTypeFromMime,
   isEnoentError,
   isMissingMediaStorageError,
+  isOggOpusMime,
+  needsVoiceNoteTranscode,
   needsWhatsAppAudioTranscode,
+  parseOptionalFormBoolean,
+  resolveOutboundAsVoiceNote,
   sanitizeFilename,
   validateOutboundMediaMime,
   validateOutboundMediaSize
@@ -25,6 +29,18 @@ describe("message-media.utils", () => {
     ).toBe(true);
     expect(needsWhatsAppAudioTranscode("audio/webm")).toBe(true);
     expect(needsWhatsAppAudioTranscode("audio/ogg")).toBe(false);
+    expect(isOggOpusMime("audio/ogg;codecs=opus")).toBe(true);
+    expect(isOggOpusMime("audio/webm;codecs=opus")).toBe(false);
+    expect(needsVoiceNoteTranscode("audio/webm;codecs=opus")).toBe(true);
+    expect(needsVoiceNoteTranscode("audio/ogg;codecs=opus")).toBe(false);
+    expect(resolveOutboundAsVoiceNote({ contentType: ContentType.AUDIO })).toBe(true);
+    expect(
+      resolveOutboundAsVoiceNote({
+        contentType: ContentType.AUDIO,
+        explicit: false
+      })
+    ).toBe(false);
+    expect(parseOptionalFormBoolean("false")).toBe(false);
   });
 
   it("detects image, audio and document mime types", () => {

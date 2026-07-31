@@ -8,6 +8,8 @@ import {
   contentTypeFromWhatsAppMediaType,
   defaultFilenameForMime,
   isMissingMediaStorageError,
+  readStoredAsVoiceNote,
+  resolveOutboundAsVoiceNote,
   sanitizeFilename,
   type MediaContentType
 } from "./message-media.utils.js";
@@ -103,6 +105,7 @@ export class MessageMediaService {
     mimeType: string;
     filename: string;
     contentType: MediaContentType;
+    asVoiceNote?: boolean;
   }) {
     const safeFilename = sanitizeFilename(input.filename);
     const storagePath = buildMessageMediaStoragePath({
@@ -131,7 +134,16 @@ export class MessageMediaService {
         mediaStoragePath: stored.storagePath,
         mediaMimeType: input.mimeType,
         mediaFilename: safeFilename,
-        mediaFileSize: input.buffer.length
+        mediaFileSize: input.buffer.length,
+        ...(input.contentType === ContentType.AUDIO
+          ? {
+              rawPayloadJson: {
+                outbound: {
+                  as_voice_note: input.asVoiceNote ?? true
+                }
+              }
+            }
+          : {})
       }
     });
   }
@@ -142,6 +154,7 @@ export class MessageMediaService {
     accessToken: string;
     to: string;
     replyToExternalId?: string;
+    asVoiceNote?: boolean;
   }): Promise<string | null> {
     const message = await prisma.message.findUnique({ where: { id: input.messageId } });
     if (!message?.mediaStoragePath || !message.mediaStorageBucket || !message.mediaMimeType) {
@@ -161,12 +174,22 @@ export class MessageMediaService {
     let uploadBuffer = buffer;
     let uploadMimeType = message.mediaMimeType;
     let uploadFilename = message.mediaFilename ?? "archivo";
+    const storedAsVoiceNote = readStoredAsVoiceNote(message.rawPayloadJson);
+    const asVoiceNote =
+      message.contentType === ContentType.AUDIO
+        ? resolveOutboundAsVoiceNote({
+            contentType: ContentType.AUDIO,
+            ...(input.asVoiceNote !== undefined ? { explicit: input.asVoiceNote } : {}),
+            ...(storedAsVoiceNote !== undefined ? { storedFlag: storedAsVoiceNote } : {})
+          })
+        : false;
 
     if (message.contentType === ContentType.AUDIO) {
       const prepared = await prepareAudioBufferForWhatsApp(
         buffer,
         message.mediaMimeType ?? "application/octet-stream",
-        message.mediaFilename
+        message.mediaFilename,
+        { voiceNote: asVoiceNote }
       );
       uploadBuffer = prepared.buffer;
       uploadMimeType = prepared.mimeType;
@@ -218,6 +241,7 @@ export class MessageMediaService {
         accessToken: input.accessToken,
         to: input.to,
         mediaId,
+        voice: asVoiceNote,
         ...(input.replyToExternalId ? { replyToExternalId: input.replyToExternalId } : {})
       });
     }

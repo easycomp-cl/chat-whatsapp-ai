@@ -38,6 +38,7 @@ type SendMediaBaseParams = {
   mediaId: string;
   caption?: string;
   replyToExternalId?: string;
+  voice?: boolean;
 };
 
 type UploadMediaParams = {
@@ -219,7 +220,8 @@ export class WhatsAppClient {
       to: params.to,
       type: "audio",
       audio: {
-        id: params.mediaId
+        id: params.mediaId,
+        ...(params.voice ? { voice: true } : {})
       }
     };
 

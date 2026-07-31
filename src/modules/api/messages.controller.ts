@@ -17,6 +17,7 @@ import { MessageIngestService } from "../conversations/message-ingest.service.js
 import { messageMediaService, MessageMediaHttpError } from "../conversations/message-media.service.js";
 import {
   defaultFilenameForMime,
+  parseOptionalFormBoolean,
   validateOutboundMediaMime,
   validateOutboundMediaSize
 } from "../conversations/message-media.utils.js";
@@ -36,7 +37,8 @@ const editMessageSchema = z.object({
 const sendMediaFieldsSchema = z.object({
   caption: z.string().optional(),
   agent_phone: z.string().optional(),
-  reply_to_message_id: z.string().optional()
+  reply_to_message_id: z.string().optional(),
+  as_voice_note: z.union([z.string(), z.boolean()]).optional()
 });
 
 const mediaUpload = multer({
@@ -233,6 +235,10 @@ export async function sendConversationMediaMessage(req: Request, res: Response) 
         ? "[Audio]"
         : "[Documento]");
 
+  const asVoiceNoteExplicit = parseOptionalFormBoolean(fields.as_voice_note);
+  const asVoiceNote =
+    asVoiceNoteExplicit ?? (mimeValidation.contentType === ContentType.AUDIO);
+
   const message = await messageIngest.ingestHumanMessage({
     tenantId: conversation!.tenantId,
     conversationId: conversation!.id,
@@ -255,7 +261,8 @@ export async function sendConversationMediaMessage(req: Request, res: Response) 
       buffer: file.buffer,
       mimeType: file.mimetype,
       filename: originalFilename,
-      contentType: mimeValidation.contentType
+      contentType: mimeValidation.contentType,
+      asVoiceNote
     });
 
     const wamid = await messageMediaService.sendStoredMessageToWhatsApp({
@@ -263,6 +270,7 @@ export async function sendConversationMediaMessage(req: Request, res: Response) 
       phoneNumberId: channel!.phoneNumberId,
       accessToken,
       to: conversation!.customer.phoneNumber,
+      asVoiceNote,
       ...(replyToExternalId ? { replyToExternalId } : {})
     });
 

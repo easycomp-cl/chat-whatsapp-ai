@@ -1,12 +1,13 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { unlink, writeFile } from "node:fs/promises";
+import { readFile, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import {
   extensionFromMime,
   isWhatsAppDirectAudioMime,
+  needsVoiceNoteTranscode,
   normalizeMediaMimeType
 } from "./message-media.utils.js";
 import { MessageMediaHttpError } from "./message-media.errors.js";
@@ -19,11 +20,20 @@ export type WhatsAppAudioPayload = {
   filename: string;
 };
 
+type PrepareAudioOptions = {
+  voiceNote?: boolean;
+};
+
 export async function prepareAudioBufferForWhatsApp(
   buffer: Buffer,
   mimeType: string,
-  filename?: string | null
+  filename?: string | null,
+  options?: PrepareAudioOptions
 ): Promise<WhatsAppAudioPayload> {
+  if (options?.voiceNote) {
+    return prepareVoiceNoteBuffer(buffer, mimeType, filename);
+  }
+
   const normalizedMime = normalizeMediaMimeType(mimeType);
 
   if (isWhatsAppDirectAudioMime(normalizedMime)) {
@@ -35,6 +45,29 @@ export async function prepareAudioBufferForWhatsApp(
     };
   }
 
+  return transcodeToOggOpus(buffer, filename);
+}
+
+async function prepareVoiceNoteBuffer(
+  buffer: Buffer,
+  mimeType: string,
+  filename?: string | null
+): Promise<WhatsAppAudioPayload> {
+  if (!needsVoiceNoteTranscode(mimeType)) {
+    return {
+      buffer,
+      mimeType: "audio/ogg",
+      filename: replaceAudioExtension(filename, "ogg")
+    };
+  }
+
+  return transcodeToOggOpus(buffer, filename);
+}
+
+async function transcodeToOggOpus(
+  buffer: Buffer,
+  filename?: string | null
+): Promise<WhatsAppAudioPayload> {
   const inputPath = join(tmpdir(), `wa-audio-in-${randomUUID()}`);
   const outputPath = join(tmpdir(), `wa-audio-out-${randomUUID()}.ogg`);
 
@@ -46,7 +79,6 @@ export async function prepareAudioBufferForWhatsApp(
       { timeout: 30_000, maxBuffer: 20 * 1024 * 1024 }
     );
 
-    const { readFile } = await import("node:fs/promises");
     const transcoded = await readFile(outputPath);
     if (transcoded.length === 0) {
       throw new MessageMediaHttpError(
