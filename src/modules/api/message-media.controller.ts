@@ -1,11 +1,13 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
+import { logger } from "../../lib/logger.js";
 import { prisma } from "../../lib/prisma.js";
 import { paramId } from "../../utils/params.js";
 import {
   MessageMediaHttpError,
   messageMediaService
 } from "../conversations/message-media.service.js";
+import { isMissingMediaStorageError } from "../conversations/message-media.utils.js";
 import { serializeMessage } from "../conversations/message-serializer.js";
 
 const mediaUrlQuerySchema = z.object({
@@ -13,11 +15,25 @@ const mediaUrlQuerySchema = z.object({
 });
 
 function handleMediaError(res: Response, error: unknown) {
+  if (res.headersSent) {
+    return;
+  }
+
   if (error instanceof MessageMediaHttpError) {
     res.status(error.statusCode).json({ error: error.message, code: error.code });
     return;
   }
-  throw error;
+
+  if (isMissingMediaStorageError(error)) {
+    res.status(404).json({
+      error: "El archivo adjunto ya no está disponible",
+      code: "media_not_found"
+    });
+    return;
+  }
+
+  logger.error({ err: error }, "Unexpected error serving message media");
+  res.status(500).json({ error: "Error al obtener el archivo" });
 }
 
 async function resolveMessageTenantId(messageId: string): Promise<string | null> {

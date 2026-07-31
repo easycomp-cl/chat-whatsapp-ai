@@ -1,6 +1,7 @@
 import { env } from "../../../config/env.js";
 import { getSupabaseAdminClient, isSupabaseConfigured } from "../../../lib/supabase-admin.js";
 import { storageService } from "../../storage/storage.service.js";
+import { isEnoentError } from "../message-media.utils.js";
 
 export type StoredMediaObject = {
   storageBackend: "supabase" | "local";
@@ -67,13 +68,22 @@ export class ChatMediaStorageService {
 
   async readBuffer(storageBucket: string, storagePath: string): Promise<Buffer> {
     if (storageBucket === this.localBucket || storageBucket === "local") {
-      return storageService.readByStoragePath(storagePath);
+      try {
+        return await storageService.readByStoragePath(storagePath);
+      } catch (error) {
+        if (isEnoentError(error)) {
+          throw new Error(`MEDIA_NOT_FOUND: ${storagePath}`, { cause: error });
+        }
+        throw error;
+      }
     }
 
     const supabase = getSupabaseAdminClient();
     const { data, error } = await supabase.storage.from(storageBucket).download(storagePath);
     if (error || !data) {
-      throw new Error(`No se pudo leer media de chat: ${error?.message ?? "archivo no encontrado"}`);
+      throw new Error(
+        `MEDIA_NOT_FOUND: ${error?.message ?? "archivo no encontrado"} (${storageBucket}/${storagePath})`
+      );
     }
 
     return Buffer.from(await data.arrayBuffer());

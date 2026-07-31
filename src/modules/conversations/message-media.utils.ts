@@ -1,5 +1,31 @@
 import { ContentType } from "@prisma/client";
 
+export function isEnoentError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as NodeJS.ErrnoException).code === "ENOENT"
+  );
+}
+
+export function isMissingMediaStorageError(error: unknown): boolean {
+  if (isEnoentError(error)) {
+    return true;
+  }
+
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  return (
+    message.startsWith("media_not_found:") ||
+    message.includes("object not found") ||
+    (message.includes("no se pudo leer media de chat") && message.includes("not found"))
+  );
+}
+
 export type MediaContentType =
   | typeof ContentType.IMAGE
   | typeof ContentType.DOCUMENT

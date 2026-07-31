@@ -2,12 +2,28 @@ import { describe, expect, it } from "vitest";
 import { ContentType } from "@prisma/client";
 import {
   contentTypeFromMime,
+  isEnoentError,
+  isMissingMediaStorageError,
   sanitizeFilename,
   validateOutboundMediaMime,
   validateOutboundMediaSize
 } from "../src/modules/conversations/message-media.utils.js";
 
 describe("message-media.utils", () => {
+  it("detects ENOENT and missing media storage errors", () => {
+    expect(isEnoentError({ code: "ENOENT" })).toBe(true);
+    expect(isEnoentError(new Error("fail"))).toBe(false);
+    expect(isMissingMediaStorageError({ code: "ENOENT" })).toBe(true);
+    expect(isMissingMediaStorageError(new Error("MEDIA_NOT_FOUND: tenants/x/file.png"))).toBe(
+      true
+    );
+    expect(
+      isMissingMediaStorageError(
+        new Error("No se pudo leer media de chat: Object not found")
+      )
+    ).toBe(true);
+  });
+
   it("detects image, audio and document mime types", () => {
     expect(contentTypeFromMime("image/jpeg")).toBe(ContentType.IMAGE);
     expect(contentTypeFromMime("image/png")).toBe(ContentType.IMAGE);

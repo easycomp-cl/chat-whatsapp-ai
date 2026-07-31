@@ -7,6 +7,7 @@ import {
   buildMessageMediaStoragePath,
   contentTypeFromWhatsAppMediaType,
   defaultFilenameForMime,
+  isMissingMediaStorageError,
   sanitizeFilename,
   type MediaContentType
 } from "./message-media.utils.js";
@@ -21,6 +22,18 @@ export class MessageMediaHttpError extends Error {
     super(message);
     this.name = "MessageMediaHttpError";
   }
+}
+
+function rethrowMediaReadError(error: unknown): never {
+  if (isMissingMediaStorageError(error)) {
+    throw new MessageMediaHttpError(
+      "El archivo adjunto ya no está disponible",
+      404,
+      "media_not_found"
+    );
+  }
+
+  throw error;
 }
 
 export class MessageMediaService {
@@ -123,10 +136,15 @@ export class MessageMediaService {
       throw new MessageMediaHttpError("El mensaje no tiene archivo adjunto", 400, "no_media");
     }
 
-    const buffer = await chatMediaStorageService.readBuffer(
-      message.mediaStorageBucket,
-      message.mediaStoragePath
-    );
+    let buffer: Buffer;
+    try {
+      buffer = await chatMediaStorageService.readBuffer(
+        message.mediaStorageBucket,
+        message.mediaStoragePath
+      );
+    } catch (error) {
+      rethrowMediaReadError(error);
+    }
 
     const mediaId = await this.whatsAppClient.uploadMedia({
       phoneNumberId: input.phoneNumberId,
@@ -232,10 +250,15 @@ export class MessageMediaService {
       throw new MessageMediaHttpError("Este mensaje no tiene archivo adjunto", 404, "no_media");
     }
 
-    const buffer = await chatMediaStorageService.readBuffer(
-      message.mediaStorageBucket,
-      message.mediaStoragePath
-    );
+    let buffer: Buffer;
+    try {
+      buffer = await chatMediaStorageService.readBuffer(
+        message.mediaStorageBucket,
+        message.mediaStoragePath
+      );
+    } catch (error) {
+      rethrowMediaReadError(error);
+    }
 
     return {
       buffer,
