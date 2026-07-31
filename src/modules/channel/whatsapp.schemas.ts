@@ -88,12 +88,32 @@ const documentMessageSchema = z.object({
   document: mediaObjectSchema
 });
 
+const audioMessageSchema = z.object({
+  id: z.string(),
+  from: z.string(),
+  timestamp: z.string().optional(),
+  type: z.literal("audio"),
+  audio: mediaObjectSchema,
+  context: contextSchema.optional()
+});
+
+const voiceMessageSchema = z.object({
+  id: z.string(),
+  from: z.string(),
+  timestamp: z.string().optional(),
+  type: z.literal("voice"),
+  audio: mediaObjectSchema,
+  context: contextSchema.optional()
+});
+
 const inboundMessageSchema = z.union([
   reactionMessageSchema,
   editMessageSchema,
   revokeMessageSchema,
   imageMessageSchema,
   documentMessageSchema,
+  audioMessageSchema,
+  voiceMessageSchema,
   textMessageSchema
 ]);
 

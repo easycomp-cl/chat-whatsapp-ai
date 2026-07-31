@@ -8,10 +8,22 @@ import {
 } from "../src/modules/conversations/message-media.utils.js";
 
 describe("message-media.utils", () => {
-  it("detects image and document mime types", () => {
+  it("detects image, audio and document mime types", () => {
     expect(contentTypeFromMime("image/jpeg")).toBe(ContentType.IMAGE);
     expect(contentTypeFromMime("image/png")).toBe(ContentType.IMAGE);
+    expect(contentTypeFromMime("audio/ogg")).toBe(ContentType.AUDIO);
+    expect(contentTypeFromMime("audio/mpeg")).toBe(ContentType.AUDIO);
     expect(contentTypeFromMime("application/pdf")).toBe(ContentType.DOCUMENT);
+  });
+
+  it("validates outbound audio mime and size limits", () => {
+    const audio = validateOutboundMediaMime("audio/ogg");
+    expect(audio.ok).toBe(true);
+    if (audio.ok) {
+      expect(audio.contentType).toBe(ContentType.AUDIO);
+      expect(validateOutboundMediaSize(audio.contentType, 10 * 1024 * 1024)).toBeNull();
+      expect(validateOutboundMediaSize(audio.contentType, 17 * 1024 * 1024)).toContain("16 MB");
+    }
   });
 
   it("validates outbound mime and size limits", () => {

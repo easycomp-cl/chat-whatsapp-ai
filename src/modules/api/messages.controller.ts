@@ -226,7 +226,11 @@ export async function sendConversationMediaMessage(req: Request, res: Response) 
   const displayText =
     fields.caption?.trim() ||
     originalFilename ||
-    (mimeValidation.contentType === ContentType.IMAGE ? "[Imagen]" : "[Documento]");
+    (mimeValidation.contentType === ContentType.IMAGE
+      ? "[Imagen]"
+      : mimeValidation.contentType === ContentType.AUDIO
+        ? "[Audio]"
+        : "[Documento]");
 
   const message = await messageIngest.ingestHumanMessage({
     tenantId: conversation!.tenantId,
@@ -335,7 +339,8 @@ export async function resendOutboundMessage(req: Request, res: Response) {
   try {
     if (
       message.contentType === ContentType.IMAGE ||
-      message.contentType === ContentType.DOCUMENT
+      message.contentType === ContentType.DOCUMENT ||
+      message.contentType === ContentType.AUDIO
     ) {
       wamid = await messageMediaService.sendStoredMessageToWhatsApp({
         messageId,

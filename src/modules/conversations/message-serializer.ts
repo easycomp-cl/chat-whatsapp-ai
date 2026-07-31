@@ -19,6 +19,7 @@ export type SerializedMessage = {
   receiverPhone: string;
   content_text: string;
   content_type: ContentType;
+  audio_transcript: string | null;
   contentTextSnapshot: string | null;
   customerEditedAt: Date | null;
   customerRevokedAt: Date | null;
@@ -47,6 +48,7 @@ export function serializeMessage(message: Message): SerializedMessage {
     receiverPhone: message.receiverPhone,
     content_text: message.contentText,
     content_type: message.contentType,
+    audio_transcript: message.audioTranscript,
     contentTextSnapshot: message.contentTextSnapshot,
     customerEditedAt: message.customerEditedAt,
     customerRevokedAt: message.customerRevokedAt,

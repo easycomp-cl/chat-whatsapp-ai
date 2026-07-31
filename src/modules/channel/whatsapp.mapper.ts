@@ -157,6 +157,37 @@ export function normalizeWebhookEvents(payload: unknown): NormalizedWebhookEvent
           continue;
         }
 
+        if (
+          (message.type === "audio" || message.type === "voice") &&
+          "audio" in message
+        ) {
+          const item: NormalizedIncomingMessage = {
+            kind: "message",
+            externalMessageId: message.id,
+            fromPhone: message.from,
+            toPhoneNumberId,
+            text: "[Audio]",
+            timestamp,
+            media: {
+              type: "audio",
+              mediaId: message.audio.id,
+              ...(message.audio.mime_type ? { mimeType: message.audio.mime_type } : {}),
+              voice: message.type === "voice"
+            },
+            rawPayload: payload
+          };
+          if (fromName) item.fromName = fromName;
+          if (toPhoneDisplay) item.toPhoneDisplay = toPhoneDisplay;
+          if ("context" in message && message.context?.id) {
+            item.replyContext = {
+              externalMessageId: message.context.id,
+              ...(message.context.from ? { fromPhone: message.context.from } : {})
+            };
+          }
+          normalized.push(item);
+          continue;
+        }
+
         if (!("text" in message)) {
           continue;
         }

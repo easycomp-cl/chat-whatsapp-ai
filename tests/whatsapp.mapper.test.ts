@@ -233,6 +233,78 @@ describe("normalizeWebhookEvents", () => {
     });
   });
 
+  it("normalizes inbound audio and voice messages", () => {
+    const audioEvents = normalizeWebhookEvents({
+      entry: [
+        {
+          changes: [
+            {
+              value: {
+                metadata: { phone_number_id: "123" },
+                messages: [
+                  {
+                    id: "wamid.audio",
+                    from: "56911111111",
+                    type: "audio",
+                    audio: {
+                      id: "media-audio-1",
+                      mime_type: "audio/ogg; codecs=opus"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(audioEvents[0]).toMatchObject({
+      kind: "message",
+      text: "[Audio]",
+      media: {
+        type: "audio",
+        mediaId: "media-audio-1",
+        mimeType: "audio/ogg; codecs=opus"
+      }
+    });
+
+    const voiceEvents = normalizeWebhookEvents({
+      entry: [
+        {
+          changes: [
+            {
+              value: {
+                metadata: { phone_number_id: "123" },
+                messages: [
+                  {
+                    id: "wamid.voice",
+                    from: "56911111111",
+                    type: "voice",
+                    audio: {
+                      id: "media-voice-1",
+                      mime_type: "audio/ogg; codecs=opus"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(voiceEvents[0]).toMatchObject({
+      kind: "message",
+      text: "[Audio]",
+      media: {
+        type: "audio",
+        mediaId: "media-voice-1",
+        voice: true
+      }
+    });
+  });
+
   it("normalizes outbound delivery status webhooks", () => {
     const events = normalizeWebhookEvents({
       entry: [

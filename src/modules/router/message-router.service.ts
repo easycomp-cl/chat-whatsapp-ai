@@ -5,7 +5,15 @@ import { TenantResolverService } from "../tenants/tenant-resolver.service.js";
 import { flowOrchestratorService } from "../flows/flow-orchestrator.service.js";
 import { ContentType } from "@prisma/client";
 import { messageMediaService } from "../conversations/message-media.service.js";
+import { inboundAudioService } from "../conversations/inbound-audio.service.js";
 import type { NormalizedIncomingMessage } from "../../types/whatsapp.js";
+
+function resolveInboundContentType(message: NormalizedIncomingMessage): ContentType | undefined {
+  if (!message.media) return undefined;
+  if (message.media.type === "image") return ContentType.IMAGE;
+  if (message.media.type === "audio") return ContentType.AUDIO;
+  return ContentType.DOCUMENT;
+}
 
 export class MessageRouterService {
   constructor(
@@ -25,13 +33,12 @@ export class MessageRouterService {
       return;
     }
 
+    const contentType = resolveInboundContentType(message);
     const ingested = await this.messageIngestService.ingestCustomerMessage({
       tenantId: resolved.tenant.id,
       channelPhoneNumber: resolved.channel.phoneNumber,
       message,
-      ...(message.media
-        ? { contentType: message.media.type === "image" ? ContentType.IMAGE : ContentType.DOCUMENT }
-        : {})
+      ...(contentType ? { contentType } : {})
     });
 
     if (ingested.isDuplicate) {
@@ -45,7 +52,18 @@ export class MessageRouterService {
       return;
     }
 
-    if (message.media) {
+    let pipelineText = message.text;
+
+    if (message.media?.type === "audio") {
+      const audioResult = await inboundAudioService.process({
+        tenantId: resolved.tenant.id,
+        conversationId: ingested.conversation.id,
+        messageId: ingested.message.id,
+        accessToken: resolved.accessToken,
+        media: message.media
+      });
+      pipelineText = audioResult.pipelineText;
+    } else if (message.media) {
       await messageMediaService.safeIngestInbound({
         tenantId: resolved.tenant.id,
         conversationId: ingested.conversation.id,
@@ -62,7 +80,7 @@ export class MessageRouterService {
       customerId: ingested.customer.id,
       customerPhone: ingested.customer.phoneNumber,
       customerName: ingested.customer.name,
-      messageText: message.text,
+      messageText: pipelineText,
       messageExternalId: message.externalMessageId,
       channelPhoneNumber: resolved.channel.phoneNumber,
       channelPhoneNumberId: resolved.channel.phoneNumberId,
@@ -126,7 +144,7 @@ export class MessageRouterService {
         name: ingested.customer.name,
         displayAlias: ingested.customer.displayAlias
       },
-      incomingText: message.text,
+      incomingText: pipelineText,
       channel: {
         phoneNumberId: resolved.channel.phoneNumberId,
         accessToken: resolved.accessToken

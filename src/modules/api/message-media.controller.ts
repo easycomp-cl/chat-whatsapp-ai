@@ -90,6 +90,7 @@ export function buildMediaMessageResponse(message: Parameters<typeof serializeMe
     sender_type: serialized.senderType,
     content_text: serialized.content_text,
     content_type: serialized.content_type,
+    audio_transcript: serialized.audio_transcript,
     external_id: serialized.external_id,
     whatsapp_delivery_status: serialized.whatsapp_delivery_status,
     reply_to_message_id: serialized.reply_to_message_id,

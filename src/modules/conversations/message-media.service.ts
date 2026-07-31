@@ -141,6 +141,7 @@ export class MessageMediaService {
       caption.length > 0 &&
       caption !== "[Imagen]" &&
       caption !== "[Documento]" &&
+      caption !== "[Audio]" &&
       caption !== (message.mediaFilename ?? "");
 
     if (message.contentType === ContentType.IMAGE) {
@@ -162,6 +163,16 @@ export class MessageMediaService {
         mediaId,
         filename: message.mediaFilename ?? "documento.pdf",
         ...(hasCaption ? { caption } : {}),
+        ...(input.replyToExternalId ? { replyToExternalId: input.replyToExternalId } : {})
+      });
+    }
+
+    if (message.contentType === ContentType.AUDIO) {
+      return this.whatsAppClient.sendAudioMessage({
+        phoneNumberId: input.phoneNumberId,
+        accessToken: input.accessToken,
+        to: input.to,
+        mediaId,
         ...(input.replyToExternalId ? { replyToExternalId: input.replyToExternalId } : {})
       });
     }

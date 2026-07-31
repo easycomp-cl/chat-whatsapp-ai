@@ -456,6 +456,7 @@ model Message {
   mediaFilename      String?
   mediaFileSize      Int?
   whatsappMediaId    String?
+  audioTranscript    String?
   createdAt         DateTime         @default(now())
   conversation      Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)

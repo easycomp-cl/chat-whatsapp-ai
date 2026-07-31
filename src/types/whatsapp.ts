@@ -4,11 +4,12 @@ export type ReplyContext = {
 };
 
 export type IncomingMediaAttachment = {
-  type: "image" | "document";
+  type: "image" | "document" | "audio";
   mediaId: string;
   mimeType?: string;
   filename?: string;
   caption?: string;
+  voice?: boolean;
 };
 
 export type NormalizedIncomingMessage = {
