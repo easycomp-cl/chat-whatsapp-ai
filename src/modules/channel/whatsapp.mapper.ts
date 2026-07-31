@@ -14,7 +14,7 @@ import { parseWhatsappDeliveryErrors } from "../../utils/whatsapp-delivery-error
 const META_STATUS_VALUES = new Set(["sent", "delivered", "read", "failed"]);
 
 function readReplyContext(message: {
-  context?: { id: string; from?: string };
+  context?: { id: string; from?: string | undefined; referred_product?: unknown } | undefined;
 }): ReplyContext | undefined {
   if (!message.context?.id) {
     return undefined;
@@ -28,7 +28,9 @@ function readReplyContext(message: {
 
 function withReplyContext<T extends NormalizedIncomingMessage>(
   item: T,
-  message: { context?: { id: string; from?: string } }
+  message: {
+    context?: { id: string; from?: string | undefined; referred_product?: unknown } | undefined;
+  }
 ): T {
   const replyContext = readReplyContext(message);
   if (replyContext) {

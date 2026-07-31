@@ -1,3 +1,5 @@
+import type { Prisma } from "@prisma/client";
+
 export type InboundMediaIngestState = {
   failed: boolean;
   error: string | null;
@@ -20,7 +22,7 @@ export function readInboundMediaIngestState(rawPayloadJson: unknown): InboundMed
 export function mergeInboundMediaIngestFailed(
   rawPayloadJson: unknown,
   errorMessage: string
-): Record<string, unknown> {
+): Prisma.InputJsonValue {
   const base =
     rawPayloadJson && typeof rawPayloadJson === "object" && !Array.isArray(rawPayloadJson)
       ? { ...(rawPayloadJson as Record<string, unknown>) }
@@ -37,17 +39,17 @@ export function mergeInboundMediaIngestFailed(
   return {
     ...base,
     inbound
-  };
+  } as Prisma.InputJsonValue;
 }
 
-export function mergeInboundMediaIngestSucceeded(rawPayloadJson: unknown): Record<string, unknown> {
+export function mergeInboundMediaIngestSucceeded(rawPayloadJson: unknown): Prisma.InputJsonValue {
   const base =
     rawPayloadJson && typeof rawPayloadJson === "object" && !Array.isArray(rawPayloadJson)
       ? { ...(rawPayloadJson as Record<string, unknown>) }
       : {};
 
   if (!base.inbound || typeof base.inbound !== "object" || Array.isArray(base.inbound)) {
-    return base;
+    return base as Prisma.InputJsonValue;
   }
 
   const inbound = { ...(base.inbound as Record<string, unknown>) };
@@ -56,11 +58,11 @@ export function mergeInboundMediaIngestSucceeded(rawPayloadJson: unknown): Recor
 
   if (Object.keys(inbound).length === 0) {
     const { inbound: _removed, ...rest } = base;
-    return rest;
+    return rest as Prisma.InputJsonValue;
   }
 
   return {
     ...base,
     inbound
-  };
+  } as Prisma.InputJsonValue;
 }

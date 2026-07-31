@@ -5,12 +5,12 @@ export type WhatsappDeliveryErrorDetail = {
 };
 
 type MetaStatusErrorRow = {
-  code?: number;
-  title?: string;
-  message?: string;
+  code?: number | undefined;
+  title?: string | undefined;
+  message?: string | undefined;
   error_data?: {
-    details?: string;
-  };
+    details?: string | undefined;
+  } | undefined;
 };
 
 export function parseWhatsappDeliveryErrors(

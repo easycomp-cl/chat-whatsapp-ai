@@ -12,6 +12,7 @@ import type { NormalizedIncomingMessage } from "../../types/whatsapp.js";
 import { normalizePhone } from "../../utils/phone.js";
 import type { WhatsappDeliveryErrorDetail } from "../../types/whatsapp.js";
 import { formatWhatsappDeliveryErrorMessage } from "../../utils/whatsapp-delivery-error.js";
+import { shouldUpgradeWhatsappDeliveryStatus } from "../../utils/whatsapp-delivery-status.js";
 import { usageEventsService, USAGE_EVENT_TYPES } from "../metrics/usage-events.service.js";
 import { resolveReplyContext } from "./resolve-reply-context.js";
 
@@ -170,7 +171,7 @@ export class MessageIngestService {
         contentType: input.contentType ?? ContentType.TEXT,
         aiGenerated: input.aiGenerated ?? false,
         externalId: input.externalId ?? null,
-        rawPayloadJson: input.rawPayloadJson,
+        ...(input.rawPayloadJson !== undefined ? { rawPayloadJson: input.rawPayloadJson } : {}),
         whatsappDeliveryStatus:
           input.externalId != null
             ? WhatsappDeliveryStatus.SENT
