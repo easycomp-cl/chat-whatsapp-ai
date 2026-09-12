@@ -22,6 +22,12 @@ enum ChannelStatus {
   INACTIVE
 }
 
+enum WhatsAppConnectionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
 enum ConversationStatus {
   OPEN
   PENDING
@@ -243,6 +249,7 @@ model Tenant {
   flowTasks           FlowTask[]
   flowFiles           FlowFile[]
   flowWebhookDeliveries FlowWebhookDelivery[]
+  whatsappConnectionSessions WhatsAppConnectionSession[]
 }
 
 model TenantChannel {
@@ -252,7 +259,10 @@ model TenantChannel {
   phoneNumber           String
   phoneNumberId         String        @unique
   wabaId                String?
+  metaBusinessId        String?
   accessTokenEncrypted  String?
+  tokenExpiresAt        DateTime?
+  lastError             String?
   verifyToken           String?
   coexistenceEnabled    Boolean       @default(false)
   status                ChannelStatus @default(ACTIVE)
@@ -262,6 +272,26 @@ model TenantChannel {
   tenant                Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, channelType])
+}
+
+model WhatsAppConnectionSession {
+  id              String                   @id @default(cuid())
+  tenantId        String
+  status          WhatsAppConnectionStatus @default(PENDING)
+  codeHash        String                   @unique
+  wabaId          String?
+  phoneNumberId   String?
+  phoneNumber     String?
+  metaBusinessId  String?
+  lastError       String?
+  expiresAt       DateTime
+  completedAt     DateTime?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  tenant          Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([phoneNumberId])
 }
 
 model TenantAdmin {

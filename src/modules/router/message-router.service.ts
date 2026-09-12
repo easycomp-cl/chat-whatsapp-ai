@@ -8,6 +8,7 @@ import { inboundAudioService } from "../conversations/inbound-audio.service.js";
 import type { NormalizedIncomingMessage } from "../../types/whatsapp.js";
 import { outboundWhatsAppReplyService } from "../channel/outbound-whatsapp-reply.service.js";
 import { WhatsAppSendError } from "../channel/whatsapp.client.js";
+import { logger } from "../../lib/logger.js";
 
 function resolveInboundContentType(message: NormalizedIncomingMessage): ContentType | undefined {
   if (!message.media) return undefined;
@@ -38,6 +39,10 @@ export class MessageRouterService {
     );
 
     if (!resolved) {
+      logger.warn(
+        { phoneNumberId: message.toPhoneNumberId },
+        "WhatsApp inbound ignored: no tenant channel for phone_number_id"
+      );
       return;
     }
 

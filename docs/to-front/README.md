@@ -4,5 +4,9 @@ Specs y contratos de API listos para implementar en el repo UI. El backend vive 
 
 | Documento | Descripción |
 |-----------|-------------|
+| [onboarding-setup-wizard-ui.md](./onboarding-setup-wizard-ui.md) | Wizard configuración inicial del negocio (FAQs + KB antes de activar bot) |
+| [bot-personalidad-configuracion-ui.md](./bot-personalidad-configuracion-ui.md) | Personalidad del bot, saludos, derivación |
 | [whatsapp-media-ui.md](./whatsapp-media-ui.md) | Imágenes y documentos (PDF) en el chat de WhatsApp |
 | [flows-ui-mvp.md](./flows-ui-mvp.md) | Módulo de flujos conversacionales (inbox, revisiones, webhooks) |
+| [chatbotmanager-ui-rebrand.md](./chatbotmanager-ui-rebrand.md) | Rebrand EasyComp Chat Bot Manager + dominio `chatbotmanager.easycomp.cl` |
+| [whatsapp-embedded-signup-ui.md](./whatsapp-embedded-signup-ui.md) | Conectar WhatsApp Business (Embedded Signup) |

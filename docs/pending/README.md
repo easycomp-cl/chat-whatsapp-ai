@@ -1,6 +1,6 @@
 # Pendientes — WhatsApp / Meta (producción)
 
-Documentación para implementar en el futuro la conexión self-service de **WhatsApp Business** por cada empresa (tenant) en EasyComp ConversAI, y la integración de **Instagram DM** (Fase 3).
+Documentación para implementar en el futuro la conexión self-service de **WhatsApp Business** por cada empresa (tenant) en EasyComp Chat Bot Manager, y la integración de **Instagram DM** (Fase 3).
 
 ## Orden recomendado
 
@@ -8,17 +8,19 @@ Documentación para implementar en el futuro la conexión self-service de **What
 |---|---------|--------|-------------|
 | 1 | [01-token-meta-permanente.md](./01-token-meta-permanente.md) | **Guía ops** | Token de System User que no expire (piloto, scripts, fallback) |
 | — | [03-conectar-numero-7544-piloto.md](./03-conectar-numero-7544-piloto.md) | **Guía práctica** | Conectar +56946867544 con scripts (sin pegar token en terminal) |
-| 2 | [02-embedded-signup-whatsapp-business.md](./02-embedded-signup-whatsapp-business.md) | **Pendiente** | Flujo para que cada dueño conecte su número Business desde la app |
+| 2 | [02-embedded-signup-whatsapp-business.md](./02-embedded-signup-whatsapp-business.md) | **Backend listo** — UI pendiente | Flujo para que cada dueño conecte su número Business desde la app |
 | 3 | [04-instagram-messaging.md](./04-instagram-messaging.md) | **Pendiente** | Instagram DM: requisitos Meta, infra, schema, código y onboarding |
 
 ## Backend pendiente (specs UI)
 
 | Documento | Estado |
 |-----------|--------|
+| [backend-onboarding-setup-wizard.md](./backend-onboarding-setup-wizard.md) | **Backend listo** — wizard setup negocio + Escalation Detector; UI pendiente |
 | [flows-backend-mvp.md](./flows-backend-mvp.md) | **PR4 listo** — motor + pricing catálogo/delivery |
 | [flows-supabase-storage.md](./flows-supabase-storage.md) | **Pendiente deploy** — bucket `flow-files` |
 | [whatsapp-media-ui.md](../to-front/whatsapp-media-ui.md) | **Backend listo** — imágenes/PDF en chat; spec para UI |
-| [ConversAI_Especificacion_Modulo_Flujos.md](./ConversAI_Especificacion_Modulo_Flujos.md) | Spec completa (referencia) |
+| [easycomp-chat-bot-manager-especificacion-modulo-flujos.md](./easycomp-chat-bot-manager-especificacion-modulo-flujos.md) | Spec completa (referencia) |
+| [migracion-dominio-chatbotmanager.md](./migracion-dominio-chatbotmanager.md) | **Ops** — DNS, ACM, Meta, Vercel para `chatbotmanager.easycomp.cl` |
 
 ## Contexto rápido
 
@@ -31,7 +33,7 @@ Documentación para implementar en el futuro la conexión self-service de **What
 
 **Falta (documentado en paso 2 y 4):**
 
-- UI «Conectar WhatsApp Business» + Embedded Signup / OAuth
+- UI «Conectar WhatsApp Business» (backend Embedded Signup listo; spec [whatsapp-embedded-signup-ui.md](../to-front/whatsapp-embedded-signup-ui.md))
 - Instagram DM (canal, webhooks, onboarding)
 
 ## Relación con otros docs del repo
@@ -48,7 +50,7 @@ Documentación para implementar en el futuro la conexión self-service de **What
 
 | Qué | URL |
 |-----|-----|
-| UI | `https://conversai.easycomp.cl` |
-| API + webhook | `https://api.conversai.easycomp.cl` |
-| Webhook WhatsApp | `https://api.conversai.easycomp.cl/webhooks/whatsapp` |
-| Webhook Instagram (propuesto) | `https://api.conversai.easycomp.cl/webhooks/instagram` |
+| UI | `https://chatbotmanager.easycomp.cl` |
+| API + webhook | `https://api-chatbotmanager.easycomp.cl` |
+| Webhook WhatsApp | `https://api-chatbotmanager.easycomp.cl/webhooks/whatsapp` |
+| Webhook Instagram (propuesto) | `https://api-chatbotmanager.easycomp.cl/webhooks/instagram` |

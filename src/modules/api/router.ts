@@ -127,6 +127,12 @@ import {
   getFlowWebhookIntegration,
   upsertFlowWebhookIntegration
 } from "./flow-webhook-integration.controller.js";
+import {
+  completeEmbeddedSignup,
+  getWhatsappConnection,
+  sendWhatsappTestMessage
+} from "./whatsapp-connection.controller.js";
+import { embeddedSignupCompleteLimiter } from "../whatsapp-connection/whatsapp-connection.rate-limit.js";
 
 export function createApiRouter() {
   const router = Router();
@@ -142,6 +148,20 @@ export function createApiRouter() {
   router.patch("/businesses/:id/onboarding", patchOnboarding);
   router.post("/businesses/:id/onboarding/complete", completeOnboarding);
   router.post("/businesses/:id/whatsapp-accounts", createWhatsappAccount);
+  router.post(
+    "/whatsapp/embedded-signup/complete",
+    embeddedSignupCompleteLimiter,
+    completeEmbeddedSignup
+  );
+  router.post(
+    "/businesses/:id/whatsapp/embedded-signup/complete",
+    embeddedSignupCompleteLimiter,
+    completeEmbeddedSignup
+  );
+  router.get("/whatsapp/connection", getWhatsappConnection);
+  router.get("/businesses/:id/whatsapp/connection", getWhatsappConnection);
+  router.post("/whatsapp/connection/test-message", sendWhatsappTestMessage);
+  router.post("/businesses/:id/whatsapp/connection/test-message", sendWhatsappTestMessage);
   router.post("/businesses/:id/agents", createAgent);
   router.patch("/agents/:id", patchAgent);
 

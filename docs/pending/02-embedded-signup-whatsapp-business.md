@@ -1,10 +1,41 @@
 # Paso 2 — Embedded Signup: conectar WhatsApp Business por empresa
 
+**Estado backend:** implementado (migración `20260912220000_whatsapp_embedded_signup`).  
+**Estado UI:** pendiente — contrato en [whatsapp-embedded-signup-ui.md](../to-front/whatsapp-embedded-signup-ui.md).
+
 **Objetivo:** que el dueño de cada negocio registre **su número WhatsApp Business** (aprobado por Meta, vía la app EasyComp), sin copiar tokens manualmente. Tras la conexión, ese número recibe mensajes de clientes y el bot responde o deriva a humano.
 
-**Prerrequisito:** [01-token-meta-permanente.md](./01-token-meta-permanente.md) completado para operar piloto y validar el runtime.
+**Prerrequisito:** [01-token-meta-permanente.md](./01-token-meta-permanente.md) para el token de plataforma / piloto. El canal de cada cliente onboarded usa **su** token de Embedded Signup, no el System User de EasyComp.
 
-**Estado en código:** runtime listo; flujo OAuth / Embedded Signup **no implementado** (tabla `EmbeddedSignupSession` existió y fue eliminada en migración `20260608_spec_alignment`).
+---
+
+## API implementada (backend)
+
+Auth: `X-API-Key` / `Authorization: Bearer` (`INTERNAL_API_KEY`). Prefijo `/api` opcional (el router está montado en `/` y `/api`).
+
+| Método | Ruta | Rol |
+|--------|------|-----|
+| POST | `/whatsapp/embedded-signup/complete` | Exchange code→token, `subscribed_apps`, upsert `TenantChannel` |
+| GET | `/whatsapp/connection?tenant_id=` | Estado connected / pending / error (sin tokens) |
+| POST | `/whatsapp/connection/test-message` | Smoke al Tester con el token persistido del tenant |
+| POST | `/businesses/:id/whatsapp/embedded-signup/complete` | Igual, tenant en la URL |
+| GET | `/businesses/:id/whatsapp/connection` | Igual, tenant en la URL |
+
+Webhook (sin cambios de URL):
+
+```txt
+GET/POST https://api-chatbotmanager.easycomp.cl/webhooks/whatsapp
+```
+
+Routing inbound: `metadata.phone_number_id` → `TenantChannel` → tenant. No hay número EasyComp hardcodeado.
+
+Persistencia:
+
+- Token cifrado en `TenantChannel.accessTokenEncrypted` (`ENCRYPTION_SECRET`)
+- `wabaId`, `phoneNumberId`, `metaBusinessId`, `tokenExpiresAt`, `lastError`
+- `WhatsAppConnectionSession.codeHash` (SHA-256) para rechazar codes reutilizados
+
+Variables: `META_APP_ID` (obligatoria para complete), `META_APP_SECRET`, `META_EMBEDDED_SIGNUP_CONFIG_ID` (expuesta al front en GET connection), `META_OAUTH_REDIRECT_URI` (opcional), `CORS_ALLOWED_ORIGINS`, `WHATSAPP_VERIFY_TOKEN` (challenge Meta; no se llama `META_WEBHOOK_VERIFY_TOKEN` en este repo).
 
 ---
 
@@ -78,8 +109,8 @@ Handoff        →  alerta a operadores (TenantAdmin) vía panel + WhatsApp
 ```mermaid
 sequenceDiagram
     participant Dueño
-    participant UI as conversai.easycomp.cl
-    participant API as api.conversai.easycomp.cl
+    participant UI as chatbotmanager.easycomp.cl
+    participant API as api-chatbotmanager.easycomp.cl
     participant Meta as Meta Graph / Embedded Signup
     participant WA as WhatsApp Cloud API
 
@@ -120,7 +151,7 @@ sequenceDiagram
   "meta": {
     "app_id": "123456789",
     "config_id": "EMBEDDED_SIGNUP_CONFIG_ID",
-    "redirect_uri": "https://conversai.easycomp.cl/settings/whatsapp/callback"
+    "redirect_uri": "https://chatbotmanager.easycomp.cl/settings/whatsapp/callback"
   }
 }
 ```
@@ -232,7 +263,7 @@ Base: `https://graph.facebook.com/{WHATSAPP_GRAPH_VERSION}/`
 **Webhook:** el callback sigue siendo el único:
 
 ```txt
-https://api.conversai.easycomp.cl/webhooks/whatsapp
+https://api-chatbotmanager.easycomp.cl/webhooks/whatsapp
 ```
 
 Meta distingue tenants por `metadata.phone_number_id` en cada evento (ya implementado en `whatsapp.mapper.ts`).
@@ -244,7 +275,7 @@ Meta distingue tenants por `metadata.phone_number_id` en cada evento (ya impleme
 Agregar en implementación futura a `src/config/env.ts`:
 
 ```env
-# App de Meta (EasyComp ConversAI)
+# App de Meta (EasyComp Chat Bot Manager)
 META_APP_ID=123456789012345
 # META_APP_SECRET ya existe
 
@@ -252,7 +283,7 @@ META_APP_ID=123456789012345
 META_EMBEDDED_SIGNUP_CONFIG_ID=...
 
 # Redirect URI registrado en la app (debe coincidir exacto)
-META_OAUTH_REDIRECT_URI=https://conversai.easycomp.cl/settings/whatsapp/callback
+META_OAUTH_REDIRECT_URI=https://chatbotmanager.easycomp.cl/settings/whatsapp/callback
 
 # Token de System User de EasyComp (para subscribed_apps y operaciones de plataforma)
 # META_SYSTEM_USER_ACCESS_TOKEN ya existe — ver paso 1
@@ -312,10 +343,10 @@ Implementar después del flujo estándar Cloud API.
 
 ### Fase B — Backend connect API
 
-- [ ] Migración `WhatsAppConnectionSession` + `PENDING_WHATSAPP_CONNECTION`
-- [ ] Servicio `meta-oauth.service.ts` (token exchange + subscribed_apps)
-- [ ] Endpoints `connect/start`, `connect/complete`, `connect/status`
-- [ ] Tests con mock Graph API
+- [x] Migración `WhatsAppConnectionSession` + columnas de canal (`metaBusinessId`, `tokenExpiresAt`, `lastError`)
+- [x] Servicio Graph (`meta-graph.client.ts`) token exchange + `subscribed_apps`
+- [x] Endpoints `embedded-signup/complete`, `connection`, `connection/test-message`
+- [x] Tests con mock Graph API
 
 ### Fase C — UI Embedded Signup
 

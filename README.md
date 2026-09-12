@@ -128,4 +128,4 @@ Roadmap para token permanente y conexión self-service de WhatsApp Business por 
 
 - [docs/pending/README.md](docs/pending/README.md) — índice
 - [docs/pending/01-token-meta-permanente.md](docs/pending/01-token-meta-permanente.md) — **paso 1** (hacer primero)
-- [docs/pending/02-embedded-signup-whatsapp-business.md](docs/pending/02-embedded-signup-whatsapp-business.md) — paso 2 (futuro)
+- [docs/pending/02-embedded-signup-whatsapp-business.md](docs/pending/02-embedded-signup-whatsapp-business.md) — paso 2 (backend listo; UI pendiente)

@@ -2,7 +2,8 @@ import type { Prisma } from "@prisma/client";
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
-import { encryptionService } from "../../lib/encryption.service.js";
+import { WhatsAppConnectionError } from "../whatsapp-connection/whatsapp-connection.errors.js";
+import { whatsappConnectionService } from "../whatsapp-connection/whatsapp-connection.service.js";
 import { faqEngine } from "../faq/faq.engine.js";
 import { buildFaqSearchText } from "../faq/faq-search-text.js";
 import { mergeKnowledgeConfig, parseTenantKnowledgeConfig } from "../tenants/tenant-knowledge-config.js";
@@ -124,6 +125,9 @@ export async function getBusiness(req: Request, res: Response) {
           phoneNumber: true,
           phoneNumberId: true,
           wabaId: true,
+          metaBusinessId: true,
+          tokenExpiresAt: true,
+          lastError: true,
           verifyToken: true,
           coexistenceEnabled: true,
           status: true,
@@ -219,30 +223,25 @@ export async function patchBusinessSettings(req: Request, res: Response) {
 export async function createWhatsappAccount(req: Request, res: Response) {
   const id = paramId(req, "id");
   const body = whatsappAccountSchema.parse(req.body);
-  const encrypted = encryptionService.encrypt(body.access_token.trim());
-  const channel = await prisma.tenantChannel.upsert({
-    where: { phoneNumberId: body.phone_number_id },
-    create: {
+  try {
+    const channel = await whatsappConnectionService.upsertTenantChannel({
       tenantId: id,
       phoneNumberId: body.phone_number_id,
       phoneNumber: body.phone_number,
       wabaId: body.waba_id ?? null,
-      accessTokenEncrypted: encrypted,
+      accessToken: body.access_token,
       verifyToken: body.verify_token ?? null,
-      coexistenceEnabled: body.coexistence_enabled ?? false,
-      status: "ACTIVE"
-    },
-    update: {
-      phoneNumber: body.phone_number,
-      wabaId: body.waba_id ?? null,
-      accessTokenEncrypted: encrypted,
-      verifyToken: body.verify_token ?? null,
-      coexistenceEnabled: body.coexistence_enabled ?? false,
-      status: "ACTIVE",
-      isActive: true
+      coexistenceEnabled: body.coexistence_enabled ?? false
+    });
+    const { accessTokenEncrypted: _omitted, ...safeChannel } = channel;
+    res.status(201).json(safeChannel);
+  } catch (error) {
+    if (error instanceof WhatsAppConnectionError) {
+      res.status(error.statusCode).json({ error: error.message, code: error.code });
+      return;
     }
-  });
-  res.status(201).json(channel);
+    throw error;
+  }
 }
 
 export async function createAgent(req: Request, res: Response) {
