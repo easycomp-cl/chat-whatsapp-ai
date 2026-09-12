@@ -1,49 +1,23 @@
-import { createHash } from "node:crypto";
-import { Prisma, type ChannelStatus, type TenantChannel } from "@prisma/client";
+import { Prisma, type TenantChannel } from "@prisma/client";
 import { env } from "../../config/env.js";
 import { encryptionService } from "../../lib/encryption.service.js";
 import { logger } from "../../lib/logger.js";
 import { prisma } from "../../lib/prisma.js";
-import { normalizePhone } from "../../utils/phone.js";
 import { WhatsAppClient } from "../channel/whatsapp.client.js";
 import { MetaGraphClient } from "../meta/meta-graph.client.js";
 import { connectionError } from "./whatsapp-connection.errors.js";
 import type { EmbeddedSignupCompleteInput } from "./whatsapp-connection.schema.js";
-import type {
-  EmbeddedSignupCompleteResult,
-  WhatsAppConnectionPublic,
-  WhatsAppPublicStatus
-} from "./whatsapp-connection.types.js";
+import type { EmbeddedSignupCompleteResult, WhatsAppConnectionPublic } from "./whatsapp-connection.types.js";
+import {
+  hashAuthorizationCode,
+  mapChannelToPublicStatus,
+  normalizeDisplayPhone
+} from "./whatsapp-connection.utils.js";
+
+export { hashAuthorizationCode, mapChannelToPublicStatus, normalizeDisplayPhone } from "./whatsapp-connection.utils.js";
 
 const SESSION_TTL_MS = 15 * 60 * 1000;
 const DEFAULT_TEST_MESSAGE = "Mensaje de prueba — EasyComp Chat Bot Manager";
-
-export function hashAuthorizationCode(code: string): string {
-  return createHash("sha256").update(code.trim()).digest("hex");
-}
-
-export function normalizeDisplayPhone(value: string): string {
-  const normalized = normalizePhone(value);
-  if (!normalized) return value.trim();
-  return normalized.startsWith("+") ? normalized : `+${normalized}`;
-}
-
-export function mapChannelToPublicStatus(channel: {
-  status: ChannelStatus;
-  isActive: boolean;
-  accessTokenEncrypted: string | null;
-  lastError: string | null;
-} | null): WhatsAppPublicStatus {
-  if (!channel) return "pending";
-  if (channel.lastError && (channel.status !== "ACTIVE" || !channel.isActive)) {
-    return "error";
-  }
-  if (channel.status === "ACTIVE" && channel.isActive && channel.accessTokenEncrypted) {
-    return "connected";
-  }
-  if (channel.lastError) return "error";
-  return "pending";
-}
 
 function requireMetaAppConfig() {
   return {

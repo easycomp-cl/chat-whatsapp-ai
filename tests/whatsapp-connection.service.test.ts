@@ -3,7 +3,7 @@ import {
   hashAuthorizationCode,
   mapChannelToPublicStatus,
   normalizeDisplayPhone
-} from "../src/modules/whatsapp-connection/whatsapp-connection.service.js";
+} from "../src/modules/whatsapp-connection/whatsapp-connection.utils.js";
 
 describe("whatsapp connection helpers", () => {
   it("hashes authorization codes without keeping plaintext", () => {

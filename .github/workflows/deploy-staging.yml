@@ -80,7 +80,7 @@ jobs:
       - name: Health check
         run: |
           for i in 1 2 3 4 5 6; do
-            if curl -fsS --max-time 15 https://api.conversai.easycomp.cl/health; then
+            if curl -fsS --max-time 15 https://api-chatbotmanager.easycomp.cl/health; then
               exit 0
             fi
             echo "Reintento $i/6..."
