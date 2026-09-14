@@ -17,6 +17,10 @@
 
 No enviar `code` a logs del browser (salvo debug local). Nunca intercambiar el code en el front.
 
+En el flujo `FB.login` (`response_type: code`, popup Embedded Signup) **no enviar `redirect_uri`**. Graph lo rechaza (`invalid_redirect_uri`) y EasyComp no persiste el canal. El backend reintenta el exchange sin URI, pero el BFF no debería mandarla. Solo incluirla si el `code` vino de `?code=` en `/onboarding/whatsapp/callback`.
+
+`GET /whatsapp/connection` 404/501 **no** significa “Autorizado en Meta”: es “sin canal”. Mostrar el `message` de 400/409/502; no tragar el error. El callback RSC no debe llamar `getWhatsappConnectionAction()` de forma que un throw tumbe la página.
+
 ---
 
 ## Autenticación
@@ -59,6 +63,7 @@ Alias por negocio: `POST /businesses/:id/whatsapp/embedded-signup/complete`
 | `phone_number_id` | sí |
 | `business_id` | no (se intenta derivar en Graph) |
 | `tenant_id` | sí, salvo que uses la ruta `/businesses/:id/...` |
+| `redirect_uri` | **no** en el flujo `FB.login` / popup. Solo si el `code` vino del redirect OAuth (`?code=` en `/onboarding/whatsapp/callback`) y debe coincidir exactamente con esa URL |
 
 **Response 200:**
 
@@ -90,7 +95,7 @@ Alias por negocio: `POST /businesses/:id/whatsapp/embedded-signup/complete`
 | `invalid_code` | 400 | Relanzar Embedded Signup |
 | `code_expired` | 400 | Relanzar Embedded Signup |
 | `code_reused` | 409 | Relanzar Embedded Signup (el code es de un solo uso) |
-| `invalid_redirect_uri` | 400 | Avisar a backend (`META_OAUTH_REDIRECT_URI`) |
+| `invalid_redirect_uri` | 400 | En `FB.login` **no enviar** `redirect_uri`. Mostrar el `message` del backend; no tragar 4xx como “Autorizado en Meta” |
 | `phone_number_conflict` | 409 | Ese número ya está en otro negocio |
 | `subscription_failed` | 502 | Reintentar complete con un code nuevo |
 | `too_many_requests` | 429 | Esperar ~15 min |

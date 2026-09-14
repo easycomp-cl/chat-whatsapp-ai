@@ -1,3 +1,4 @@
+import { logger } from "../../lib/logger.js";
 import { connectionError, WhatsAppConnectionError } from "../whatsapp-connection/whatsapp-connection.errors.js";
 
 type GraphErrorBody = {
@@ -80,7 +81,7 @@ export function mapOAuthGraphError(status: number, body: GraphErrorBody): WhatsA
   ) {
     return connectionError(
       "invalid_redirect_uri",
-      "Meta rechazó el redirect_uri del intercambio OAuth. Revisa META_OAUTH_REDIRECT_URI (debe coincidir con el usado en Embedded Signup).",
+      "Meta rechazó el redirect_uri del intercambio OAuth. El code de FB.login (Embedded Signup) no debe enviarse con redirect_uri.",
       400
     );
   }
@@ -109,12 +110,62 @@ export class MetaGraphClient {
   }
 
   async exchangeCodeForToken(code: string): Promise<ExchangedToken> {
+    // FB.login Embedded Signup (response_type=code) emite un code que Graph
+    // rechaza si se manda redirect_uri. El redirect OAuth sí lo necesita.
+    // Probar sin URI primero; si Meta pide coincidencia, reintentar con la configurada.
+    const redirectCandidates: Array<string | undefined> = [undefined];
+    if (this.config.redirectUri) {
+      redirectCandidates.push(this.config.redirectUri);
+    }
+
+    let lastRedirectError: WhatsAppConnectionError | undefined;
+    for (let i = 0; i < redirectCandidates.length; i++) {
+      const redirectUri = redirectCandidates[i];
+      try {
+        const token = await this.exchangeCodeForTokenOnce(code, redirectUri);
+        if (i > 0) {
+          logger.info(
+            { usedRedirectUri: Boolean(redirectUri) },
+            "OAuth token exchange succeeded after retrying redirect_uri"
+          );
+        }
+        return token;
+      } catch (error) {
+        const canRetry =
+          error instanceof WhatsAppConnectionError &&
+          error.code === "invalid_redirect_uri" &&
+          i < redirectCandidates.length - 1;
+        if (!canRetry) {
+          throw error;
+        }
+        lastRedirectError = error;
+        logger.warn(
+          { hadRedirectUri: Boolean(redirectUri) },
+          "OAuth token exchange rejected redirect_uri; retrying with the configured URI"
+        );
+      }
+    }
+
+    throw (
+      lastRedirectError ??
+      connectionError(
+        "invalid_redirect_uri",
+        "Meta rechazó el redirect_uri del intercambio OAuth. El code de FB.login (Embedded Signup) no debe enviarse con redirect_uri.",
+        400
+      )
+    );
+  }
+
+  private async exchangeCodeForTokenOnce(
+    code: string,
+    redirectUri: string | undefined
+  ): Promise<ExchangedToken> {
     const url = new URL(this.graphUrl("/oauth/access_token"));
     url.searchParams.set("client_id", this.config.appId);
     url.searchParams.set("client_secret", this.config.appSecret);
     url.searchParams.set("code", code);
-    if (this.config.redirectUri) {
-      url.searchParams.set("redirect_uri", this.config.redirectUri);
+    if (redirectUri) {
+      url.searchParams.set("redirect_uri", redirectUri);
     }
 
     const response = await fetch(url, { method: "GET" });

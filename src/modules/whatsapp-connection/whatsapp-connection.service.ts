@@ -5,7 +5,7 @@ import { logger } from "../../lib/logger.js";
 import { prisma } from "../../lib/prisma.js";
 import { WhatsAppClient } from "../channel/whatsapp.client.js";
 import { MetaGraphClient } from "../meta/meta-graph.client.js";
-import { connectionError } from "./whatsapp-connection.errors.js";
+import { connectionError, WhatsAppConnectionError } from "./whatsapp-connection.errors.js";
 import type { EmbeddedSignupCompleteInput } from "./whatsapp-connection.schema.js";
 import type { EmbeddedSignupCompleteResult, WhatsAppConnectionPublic } from "./whatsapp-connection.types.js";
 import {
@@ -233,6 +233,16 @@ export class WhatsAppConnectionService {
         error instanceof Error
           ? error.message
           : "No se pudo completar la conexión de WhatsApp.";
+
+      logger.warn(
+        {
+          tenantId,
+          wabaId: input.waba_id,
+          phoneNumberId: input.phone_number_id,
+          errorCode: error instanceof WhatsAppConnectionError ? error.code : "unknown"
+        },
+        "WhatsApp Embedded Signup failed before persisting TenantChannel"
+      );
 
       await prisma.whatsAppConnectionSession.update({
         where: { id: session.id },

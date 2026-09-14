@@ -62,6 +62,62 @@ describe("MetaGraphClient", () => {
     expect(calledUrl).toContain("oauth/access_token");
     expect(calledUrl).toContain("client_id=1642810900259407");
     expect(calledUrl).toContain("code=AQBx-code");
+    expect(calledUrl).not.toContain("redirect_uri");
+  });
+
+  it("exchanges an FB.login code without redirect_uri even if one is configured", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ access_token: "EAA_sdk_token", token_type: "bearer" })
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new MetaGraphClient({
+      graphVersion: "v25.0",
+      appId: "app",
+      appSecret: "secret",
+      redirectUri: "https://chatbotmanager.easycomp.cl/onboarding/whatsapp/callback"
+    });
+
+    const token = await client.exchangeCodeForToken("AQBx-sdk-code");
+    expect(token.accessToken).toBe("EAA_sdk_token");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("redirect_uri");
+  });
+
+  it("retries with the configured redirect_uri if Meta rejects the first attempt", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          error: {
+            message:
+              "Error validating verification code. Please make sure your redirect_uri is identical"
+          }
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ access_token: "EAA_redirect_token", token_type: "bearer" })
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new MetaGraphClient({
+      graphVersion: "v25.0",
+      appId: "app",
+      appSecret: "secret",
+      redirectUri: "https://chatbotmanager.easycomp.cl/onboarding/whatsapp/callback"
+    });
+
+    const token = await client.exchangeCodeForToken("AQBx-redirect-code");
+    expect(token.accessToken).toBe("EAA_redirect_token");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("redirect_uri");
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain(
+      "redirect_uri=https%3A%2F%2Fchatbotmanager.easycomp.cl%2Fonboarding%2Fwhatsapp%2Fcallback"
+    );
   });
 
   it("subscribes the WABA with the customer token", async () => {

@@ -177,7 +177,7 @@ sequenceDiagram
 **Pasos internos:**
 
 1. Validar sesión PENDING y no expirada.
-2. `GET https://graph.facebook.com/{version}/oauth/access_token` con `code`, `client_id`, `client_secret`, `redirect_uri`.
+2. `GET https://graph.facebook.com/{version}/oauth/access_token` con `code`, `client_id`, `client_secret`. **No** enviar `redirect_uri` si el code vino de `FB.login` / Embedded Signup popup; sí enviarlo (idéntico al usado en el diálogo) si el code vino del redirect OAuth.
 3. (Opcional) Intercambiar por long-lived token si aplica.
 4. `POST /{waba-id}/subscribed_apps` con token de la app (suscribir webhooks del WABA a tu app).
 5. Llamar lógica existente de `createWhatsappAccount` (mismo upsert `TenantChannel`).
