@@ -4,6 +4,7 @@ export const embeddedSignupCompleteSchema = z.object({
   code: z.string().min(8, "code es obligatorio"),
   waba_id: z.string().min(1, "waba_id es obligatorio"),
   phone_number_id: z.string().min(1, "phone_number_id es obligatorio"),
+  pin: z.string().regex(/^\d{6}$/, "pin debe ser un código de 6 dígitos"),
   business_id: z.string().min(1).optional(),
   tenant_id: z.string().min(1).optional(),
   redirect_uri: z.string().url().optional()
