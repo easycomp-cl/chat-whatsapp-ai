@@ -158,6 +158,8 @@ export class WhatsAppConnectionService {
 
       await graph.subscribeWaba(input.waba_id, token.accessToken);
 
+      await graph.registerPhoneNumber(input.phone_number_id, token.accessToken, input.pin);
+
       let displayPhone = "";
       let businessId = input.business_id ?? null;
 

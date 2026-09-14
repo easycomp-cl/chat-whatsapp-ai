@@ -138,4 +138,60 @@ describe("MetaGraphClient", () => {
       Authorization: "Bearer EAA_customer"
     });
   });
+
+  it("registers a phone number with PIN for two-step verification", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new MetaGraphClient({
+      graphVersion: "v21.0",
+      appId: "app",
+      appSecret: "secret"
+    });
+
+    await client.registerPhoneNumber("1259543080583373", "EAA_customer", "123456");
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toContain("/1259543080583373/register");
+    expect((init as RequestInit).method).toBe("POST");
+    expect((init as RequestInit).headers).toMatchObject({
+      Authorization: "Bearer EAA_customer",
+      "Content-Type": "application/json"
+    });
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body).toEqual({
+      messaging_product: "whatsapp",
+      pin: "123456"
+    });
+  });
+
+  it("throws register_failed error when phone registration fails", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({
+        error: {
+          message: "Invalid pin",
+          code: 100
+        }
+      })
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new MetaGraphClient({
+      graphVersion: "v21.0",
+      appId: "app",
+      appSecret: "secret"
+    });
+
+    await expect(
+      client.registerPhoneNumber("1259543080583373", "EAA_customer", "wrong-pin")
+    ).rejects.toThrow();
+    
+    try {
+      await client.registerPhoneNumber("1259543080583373", "EAA_customer", "wrong-pin");
+    } catch (error: any) {
+      expect(error.code).toBe("register_failed");
+      expect(error.statusCode).toBe(400);
+    }
+  });
 });

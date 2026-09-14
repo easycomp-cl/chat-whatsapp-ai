@@ -227,6 +227,38 @@ export class MetaGraphClient {
     );
   }
 
+  async registerPhoneNumber(phoneNumberId: string, accessToken: string, pin: string): Promise<void> {
+    const response = await fetch(this.graphUrl(`/${phoneNumberId}/register`), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        pin
+      })
+    });
+
+    if (response.ok) {
+      return;
+    }
+
+    const json = (await response.json().catch(() => ({}))) as GraphErrorBody;
+    const message = json.error?.message ?? json.error?.error_user_msg ?? "";
+    
+    logger.warn(
+      { phoneNumberId, status: response.status, errorMessage: message },
+      "WhatsApp phone number registration failed"
+    );
+
+    throw connectionError(
+      "register_failed",
+      `No se pudo registrar el número de WhatsApp en la Cloud API. ${message || "Verifica el PIN de verificación en dos pasos."}.`,
+      response.status >= 500 ? 502 : 400
+    );
+  }
+
   async getPhoneNumber(phoneNumberId: string, accessToken: string): Promise<PhoneNumberDetails> {
     const url = new URL(this.graphUrl(`/${phoneNumberId}`));
     url.searchParams.set("fields", "id,display_phone_number,verified_name");
