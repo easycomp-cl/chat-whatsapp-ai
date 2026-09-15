@@ -49,9 +49,9 @@ export const STANDARD_TEMPLATE_PACK: StandardTemplateDefinition[] = [
     category: "UTILITY",
     productUse: "Aviso al responsable: un cliente pidió atención humana",
     bodyPreview:
-      "Hola {{1}}, un cliente de {{2}} espera un humano. Conversación: {{3}}",
+      "Hola {{1}}, un cliente de {{2}} espera un humano. Conversación: {{3}}. Entrá al panel para atenderlo.",
     bodyText:
-      "Hola {{1}}, un cliente de {{2}} espera un humano. Conversación: {{3}}",
+      "Hola {{1}}, un cliente de {{2}} espera un humano. Conversación: {{3}}. Entrá al panel para atenderlo.",
     bodyExamples: ["María", "Panadería Aurora", "Israel G."],
     allowCategoryChange: false,
     parameterFields: [
@@ -81,8 +81,10 @@ export const STANDARD_TEMPLATE_PACK: StandardTemplateDefinition[] = [
     language: STANDARD_TEMPLATE_LANGUAGE,
     category: "UTILITY",
     productUse: "Estado de pedido (ventana cerrada o abierta)",
-    bodyPreview: "Hola {{1}}, tu pedido {{2}} tiene el siguiente estado: {{3}}.",
-    bodyText: "Hola {{1}}, tu pedido {{2}} tiene el siguiente estado: {{3}}.",
+    bodyPreview:
+      "Hola {{1}}, tu pedido {{2}} tiene el siguiente estado: {{3}}. Si tienes dudas, responde este chat.",
+    bodyText:
+      "Hola {{1}}, tu pedido {{2}} tiene el siguiente estado: {{3}}. Si tienes dudas, responde este chat.",
     bodyExamples: ["Juan", "#1042", "En preparación"],
     allowCategoryChange: false,
     parameterFields: [

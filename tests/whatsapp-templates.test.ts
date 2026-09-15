@@ -10,6 +10,15 @@ import { mapMetaTemplateStatus } from "../src/modules/whatsapp-templates/whatsap
 import { normalizeWebhookEvents } from "../src/modules/channel/whatsapp.mapper.js";
 
 describe("standard template pack", () => {
+  it("no deja variables al inicio o al final del cuerpo (regla Meta 2388299)", () => {
+    for (const definition of STANDARD_TEMPLATE_PACK) {
+      if (!definition.bodyText) continue;
+      const text = definition.bodyText.trim();
+      expect(text, definition.name).not.toMatch(/^\{\{\d+\}\}/);
+      expect(text.replace(/[.!?…]+$/u, "").trim(), definition.name).not.toMatch(/\{\{\d+\}\}$/);
+    }
+  });
+
   it("incluye verificación, handoff, pago y muestra de producto", () => {
     const names = STANDARD_TEMPLATE_PACK.map((item) => item.name);
     expect(names).toEqual(
@@ -40,7 +49,7 @@ describe("standard template pack", () => {
   it("renderiza variables de cuerpo y componentes de envío", () => {
     const definition = getStandardTemplate("pedido_actualizacion_es");
     expect(renderTemplateBody(definition!.bodyText!, ["Juan", "#1042", "Enviado"])).toBe(
-      "Hola Juan, tu pedido #1042 tiene el siguiente estado: Enviado."
+      "Hola Juan, tu pedido #1042 tiene el siguiente estado: Enviado. Si tienes dudas, responde este chat."
     );
 
     const components = buildSendTemplateComponents({
