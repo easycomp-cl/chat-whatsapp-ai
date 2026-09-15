@@ -1,5 +1,5 @@
-import type { ChatTurn } from "../src/modules/runtime/conversation-history.js";
-import type { BenchmarkScoreSpec } from "../src/modules/runtime/ai-benchmark.scoring.js";
+import type { ChatTurn } from "./conversation-history.js";
+import type { BenchmarkScoreSpec } from "./ai-benchmark.scoring.js";
 
 export const BENCHMARK_MODELS = [
   { id: "gpt-4o-mini", label: "GPT-4o mini (actual)" },
