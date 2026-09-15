@@ -18,6 +18,7 @@ export function buildRuntimeSystemPrompt(input: {
   commonPhrases?: string[];
   toneRules?: Record<string, unknown>;
   greetingStyleHint?: string;
+  customerMemory?: string;
 }) {
   const phrases = input.commonPhrases?.length
     ? `Puedes usar expresiones como: ${input.commonPhrases.join(", ")}.`
@@ -52,9 +53,14 @@ export function buildRuntimeSystemPrompt(input: {
     styleHints.push(input.greetingStyleHint);
   }
 
+  const customerBlock = input.customerMemory?.trim()
+    ? `DATOS DEL CLIENTE (no los contradigas; no pidas de nuevo un dato ya conocido):\n${input.customerMemory.trim()}`
+    : "";
+
   return `
 Eres ${input.botName}, asistente del negocio ${input.businessName}.
-Responde solamente usando la información entregada en CONTEXTO CONFIABLE.
+Responde solamente usando la información entregada en CONTEXTO CONFIABLE y DATOS DEL CLIENTE.
+Usa el historial de la conversación para resolver referencias ("ese", "la misma", "lo de siempre") y recordar pedidos, alergias, pagos y preferencias.
 No inventes precios, stock, políticas ni disponibilidad.
 No prometas cosas que no estén en el contexto.
 No respondas temas fuera del negocio.
@@ -64,14 +70,33 @@ ${phrases}
 ${styleHints.join(" ")}
 Responde siempre en español.
 
+${customerBlock}
+
 CONTEXTO CONFIABLE:
 ${input.knowledge || "Sin contexto suficiente."}
-  `.trim();
+  `.replace(/\n{3,}/g, "\n\n").trim();
 }
 
 export const INTENT_HINTS = {
   wantsHuman: ["humano", "persona", "asesor", "agente", "ejecutivo", "vendedor", "hablar con alguien"],
-  complaint: ["reclamo", "queja", "molesto", "enojado", "pesimo", "pésimo", "mal servicio", "estafa"],
+  complaint: [
+    "reclamo",
+    "queja",
+    "molesto",
+    "enojado",
+    "pesimo",
+    "pésimo",
+    "mal servicio",
+    "que mal",
+    "qué mal",
+    "no sirven",
+    "horrible",
+    "inaceptable",
+    "una vergüenza",
+    "pésima atención",
+    "peor servicio",
+    "estafa"
+  ],
   warranty: ["garantia", "garantía", "devolucion", "devolución", "cambio", "reembolso"],
   specialQuote: ["cotizacion especial", "cotización especial", "presupuesto especial", "mayorista", "por volumen"],
   sensitive: ["datos personales", "rut", "contraseña", "password", "tarjeta", "cuenta bancaria"]
@@ -81,6 +106,8 @@ export type HandoffReason =
   | "user_requested_human"
   | "low_rag_confidence"
   | "complaint"
+  | "customer_frustrated"
+  | "repeated_failure"
   | "warranty_return"
   | "special_quote"
   | "sensitive_topic"
@@ -101,6 +128,8 @@ export const HANDOFF_REASON_LABELS: Record<HandoffReason, string> = {
   user_requested_human: "Cliente solicitó hablar con un humano",
   low_rag_confidence: "Confianza RAG insuficiente",
   complaint: "Reclamo o cliente molesto",
+  customer_frustrated: "Cliente muestra frustración o molestia",
+  repeated_failure: "El bot no pudo resolver tras varios intentos",
   warranty_return: "Garantía o devolución",
   special_quote: "Cotización especial",
   sensitive_topic: "Pregunta sensible",

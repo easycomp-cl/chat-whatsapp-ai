@@ -54,6 +54,11 @@ jobs:
             ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest
             ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
 
+      - name: Ensure CloudWatch log group
+        run: |
+          aws logs create-log-group --log-group-name /ecs/chat-whatsapp-ai --region "${{ env.AWS_REGION }}" 2>/dev/null || true
+          aws logs put-retention-policy --log-group-name /ecs/chat-whatsapp-ai --retention-in-days 14 --region "${{ env.AWS_REGION }}" 2>/dev/null || true
+
       - name: Deploy to ECS (desired-count=1 + new task)
         run: |
           aws ecs update-service \
@@ -75,7 +80,7 @@ jobs:
       - name: Health check
         run: |
           for i in 1 2 3 4 5 6; do
-            if curl -fsS --max-time 15 https://api.conversai.easycomp.cl/health; then
+            if curl -fsS --max-time 15 https://api-chatbotmanager.easycomp.cl/health; then
               exit 0
             fi
             echo "Reintento $i/6..."

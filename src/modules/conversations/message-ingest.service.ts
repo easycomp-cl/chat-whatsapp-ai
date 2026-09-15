@@ -1,20 +1,29 @@
 import {
+  ContentType,
   ConversationMode,
   ConversationStatus,
   MessageDirection,
-  SenderType
+  Prisma,
+  SenderType,
+  WhatsappDeliveryStatus
 } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import type { NormalizedIncomingMessage } from "../../types/whatsapp.js";
 import { normalizePhone } from "../../utils/phone.js";
+import type { WhatsappDeliveryErrorDetail } from "../../types/whatsapp.js";
+import { formatWhatsappDeliveryErrorMessage } from "../../utils/whatsapp-delivery-error.js";
+import { shouldUpgradeWhatsappDeliveryStatus } from "../../utils/whatsapp-delivery-status.js";
 import { usageEventsService, USAGE_EVENT_TYPES } from "../metrics/usage-events.service.js";
 import { resolveReplyContext } from "./resolve-reply-context.js";
+
+export const CUSTOMER_REVOKED_MESSAGE_TEXT = "Mensaje eliminado por el usuario";
 
 export class MessageIngestService {
   async ingestCustomerMessage(input: {
     tenantId: string;
     channelPhoneNumber: string;
     message: NormalizedIncomingMessage;
+    contentType?: ContentType;
   }) {
     const customer = await prisma.customer.upsert({
       where: {
@@ -68,7 +77,8 @@ export class MessageIngestService {
         return {
           customer: existingFull.customer,
           conversation: existingFull.conversation,
-          message: existingFull
+          message: existingFull,
+          isDuplicate: true
         };
       }
     }
@@ -92,6 +102,7 @@ export class MessageIngestService {
         senderPhone: normalizePhone(input.message.fromPhone),
         receiverPhone: normalizePhone(input.channelPhoneNumber),
         contentText: input.message.text,
+        contentType: input.contentType ?? ContentType.TEXT,
         externalId: input.message.externalMessageId,
         replyToMessageId: replyFields.replyToMessageId,
         quotedText: replyFields.quotedText,
@@ -116,7 +127,36 @@ export class MessageIngestService {
       metadata: { messageId: persistedMessage.id }
     });
 
-    return { customer, conversation, message: persistedMessage };
+    return { customer, conversation, message: persistedMessage, isDuplicate: false };
+  }
+
+  async findPendingBotOutbound(input: {
+    conversationId: string;
+    after: Date;
+  }) {
+    return prisma.message.findFirst({
+      where: {
+        conversationId: input.conversationId,
+        direction: MessageDirection.OUTBOUND,
+        senderType: SenderType.BOT,
+        externalId: null,
+        createdAt: { gte: input.after }
+      },
+      orderBy: { createdAt: "asc" }
+    });
+  }
+
+  async hasBotReplyAfter(input: { conversationId: string; after: Date }) {
+    const reply = await prisma.message.findFirst({
+      where: {
+        conversationId: input.conversationId,
+        direction: MessageDirection.OUTBOUND,
+        senderType: SenderType.BOT,
+        createdAt: { gt: input.after }
+      },
+      select: { id: true }
+    });
+    return Boolean(reply);
   }
 
   async ingestBotMessage(input: {
@@ -128,6 +168,8 @@ export class MessageIngestService {
     text: string;
     aiGenerated?: boolean;
     externalId?: string | null;
+    contentType?: ContentType;
+    rawPayloadJson?: Prisma.InputJsonValue;
   }) {
     const message = await prisma.message.create({
       data: {
@@ -139,8 +181,14 @@ export class MessageIngestService {
         senderPhone: normalizePhone(input.botPhone),
         receiverPhone: normalizePhone(input.customerPhone),
         contentText: input.text,
+        contentType: input.contentType ?? ContentType.TEXT,
         aiGenerated: input.aiGenerated ?? false,
-        externalId: input.externalId ?? null
+        externalId: input.externalId ?? null,
+        ...(input.rawPayloadJson !== undefined ? { rawPayloadJson: input.rawPayloadJson } : {}),
+        whatsappDeliveryStatus:
+          input.externalId != null
+            ? WhatsappDeliveryStatus.SENT
+            : WhatsappDeliveryStatus.PENDING
       }
     });
 
@@ -155,8 +203,219 @@ export class MessageIngestService {
   async setMessageExternalId(messageId: string, externalId: string) {
     await prisma.message.update({
       where: { id: messageId },
-      data: { externalId }
+      data: {
+        externalId,
+        whatsappDeliveryStatus: WhatsappDeliveryStatus.SENT,
+        whatsappDeliveryErrorCode: null,
+        whatsappDeliveryErrorMessage: null
+      }
     });
+  }
+
+  async markDeliveryPending(messageId: string) {
+    await prisma.message.update({
+      where: { id: messageId },
+      data: {
+        whatsappDeliveryStatus: WhatsappDeliveryStatus.PENDING,
+        whatsappDeliveryErrorCode: null,
+        whatsappDeliveryErrorMessage: null
+      }
+    });
+  }
+
+  async markDeliveryFailed(
+    messageId: string,
+    deliveryError?: WhatsappDeliveryErrorDetail | { code?: number; message: string }
+  ) {
+    await prisma.message.update({
+      where: { id: messageId },
+      data: {
+        whatsappDeliveryStatus: WhatsappDeliveryStatus.FAILED,
+        ...(deliveryError?.message
+          ? {
+              whatsappDeliveryErrorCode:
+                "code" in deliveryError && typeof deliveryError.code === "number"
+                  ? deliveryError.code
+                  : null,
+              whatsappDeliveryErrorMessage: deliveryError.message
+            }
+          : {
+              whatsappDeliveryErrorCode: null,
+              whatsappDeliveryErrorMessage: null
+            })
+      }
+    });
+  }
+
+  async updateMessageText(messageId: string, text: string) {
+    return prisma.message.update({
+      where: { id: messageId },
+      data: { contentText: text }
+    });
+  }
+
+  async applyCustomerMessageEdit(input: {
+    tenantId: string;
+    originalMessageId: string;
+    text: string;
+    editedAt?: Date;
+  }) {
+    const target = await prisma.message.findFirst({
+      where: { externalId: input.originalMessageId },
+      select: {
+        id: true,
+        tenantId: true,
+        direction: true,
+        senderType: true,
+        contentText: true,
+        contentTextSnapshot: true,
+        customerRevokedAt: true
+      }
+    });
+
+    if (!target) {
+      return { updated: false as const, reason: "not_found" as const };
+    }
+
+    if (target.tenantId !== input.tenantId) {
+      return { updated: false as const, reason: "tenant_mismatch" as const };
+    }
+
+    if (
+      target.direction !== MessageDirection.INBOUND ||
+      target.senderType !== SenderType.CUSTOMER
+    ) {
+      return { updated: false as const, reason: "not_customer_inbound" as const };
+    }
+
+    if (target.customerRevokedAt) {
+      return { updated: false as const, reason: "already_revoked" as const };
+    }
+
+    if (target.contentText.trim() === input.text.trim()) {
+      return { updated: false as const, reason: "unchanged" as const, messageId: target.id };
+    }
+
+    const editedAt = input.editedAt ?? new Date();
+
+    await prisma.message.update({
+      where: { id: target.id },
+      data: {
+        contentText: input.text.trim(),
+        contentTextSnapshot: target.contentTextSnapshot ?? target.contentText,
+        customerEditedAt: editedAt
+      }
+    });
+
+    return { updated: true as const, messageId: target.id };
+  }
+
+  async applyCustomerMessageRevoke(input: {
+    tenantId: string;
+    originalMessageId: string;
+    revokedAt?: Date;
+  }) {
+    const target = await prisma.message.findFirst({
+      where: { externalId: input.originalMessageId },
+      select: {
+        id: true,
+        tenantId: true,
+        direction: true,
+        senderType: true,
+        contentText: true,
+        customerRevokedAt: true
+      }
+    });
+
+    if (!target) {
+      return { updated: false as const, reason: "not_found" as const };
+    }
+
+    if (target.tenantId !== input.tenantId) {
+      return { updated: false as const, reason: "tenant_mismatch" as const };
+    }
+
+    if (
+      target.direction !== MessageDirection.INBOUND ||
+      target.senderType !== SenderType.CUSTOMER
+    ) {
+      return { updated: false as const, reason: "not_customer_inbound" as const };
+    }
+
+    if (target.customerRevokedAt) {
+      return { updated: false as const, reason: "unchanged" as const, messageId: target.id };
+    }
+
+    const revokedAt = input.revokedAt ?? new Date();
+    const snapshot =
+      target.contentText === CUSTOMER_REVOKED_MESSAGE_TEXT
+        ? null
+        : target.contentText;
+
+    await prisma.message.update({
+      where: { id: target.id },
+      data: {
+        contentTextSnapshot: snapshot,
+        contentText: CUSTOMER_REVOKED_MESSAGE_TEXT,
+        customerRevokedAt: revokedAt
+      }
+    });
+
+    return { updated: true as const, messageId: target.id };
+  }
+
+  async applyOutboundDeliveryStatus(input: {
+    externalMessageId: string;
+    status: WhatsappDeliveryStatus;
+    deliveryError?: WhatsappDeliveryErrorDetail;
+  }) {
+    const message = await prisma.message.findFirst({
+      where: {
+        externalId: input.externalMessageId,
+        direction: MessageDirection.OUTBOUND
+      },
+      select: {
+        id: true,
+        whatsappDeliveryStatus: true
+      }
+    });
+
+    if (!message) {
+      return { updated: false as const, reason: "not_found" as const };
+    }
+
+    const canUpdateStatus = shouldUpgradeWhatsappDeliveryStatus(
+      message.whatsappDeliveryStatus,
+      input.status
+    );
+    const canRefreshFailedDetails =
+      input.status === WhatsappDeliveryStatus.FAILED &&
+      Boolean(input.deliveryError) &&
+      message.whatsappDeliveryStatus === WhatsappDeliveryStatus.FAILED;
+
+    if (!canUpdateStatus && !canRefreshFailedDetails) {
+      return { updated: false as const, reason: "stale" as const };
+    }
+
+    await prisma.message.update({
+      where: { id: message.id },
+      data: {
+        whatsappDeliveryStatus: input.status,
+        ...(input.status === WhatsappDeliveryStatus.FAILED && input.deliveryError
+          ? {
+              whatsappDeliveryErrorCode: input.deliveryError.code,
+              whatsappDeliveryErrorMessage: formatWhatsappDeliveryErrorMessage(input.deliveryError)
+            }
+          : input.status !== WhatsappDeliveryStatus.FAILED
+            ? {
+                whatsappDeliveryErrorCode: null,
+                whatsappDeliveryErrorMessage: null
+              }
+            : {})
+      }
+    });
+
+    return { updated: true as const, messageId: message.id };
   }
 
   async ingestHumanMessage(input: {
@@ -167,10 +426,17 @@ export class MessageIngestService {
     businessPhone: string;
     customerPhone: string;
     text: string;
+    contentType?: ContentType;
     externalId?: string | null;
     replyToMessageId?: string | null;
     quotedText?: string | null;
     quotedSenderType?: SenderType | null;
+    mediaStorageBucket?: string | null;
+    mediaStoragePath?: string | null;
+    mediaMimeType?: string | null;
+    mediaFilename?: string | null;
+    mediaFileSize?: number | null;
+    rawPayloadJson?: Prisma.InputJsonValue;
   }) {
     const message = await prisma.message.create({
       data: {
@@ -182,11 +448,20 @@ export class MessageIngestService {
         senderPhone: normalizePhone(input.agentPhone),
         receiverPhone: normalizePhone(input.customerPhone),
         contentText: input.text,
+        contentType: input.contentType ?? ContentType.TEXT,
         aiGenerated: false,
         externalId: input.externalId ?? null,
+        ...(input.rawPayloadJson !== undefined ? { rawPayloadJson: input.rawPayloadJson } : {}),
+        whatsappDeliveryStatus:
+          input.externalId != null ? WhatsappDeliveryStatus.SENT : WhatsappDeliveryStatus.PENDING,
         replyToMessageId: input.replyToMessageId ?? null,
         quotedText: input.quotedText ?? null,
-        quotedSenderType: input.quotedSenderType ?? null
+        quotedSenderType: input.quotedSenderType ?? null,
+        mediaStorageBucket: input.mediaStorageBucket ?? null,
+        mediaStoragePath: input.mediaStoragePath ?? null,
+        mediaMimeType: input.mediaMimeType ?? null,
+        mediaFilename: input.mediaFilename ?? null,
+        mediaFileSize: input.mediaFileSize ?? null
       }
     });
 

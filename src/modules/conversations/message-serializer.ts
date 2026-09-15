@@ -1,0 +1,112 @@
+import type { ContentType, Message, SenderType, WhatsappDeliveryStatus } from "@prisma/client";
+import { readInboundMediaIngestState } from "../../utils/inbound-media-ingest-state.js";
+import { readStoredOutboundInteractive } from "../../utils/whatsapp-interactive.js";
+import type { OutboundInteractiveMessage } from "../../utils/whatsapp-interactive.js";
+
+export type SerializedOutboundTemplate = {
+  name: string;
+  language: string;
+  body_parameters: string[];
+};
+
+export type SerializedMessageMedia = {
+  has_media: boolean;
+  mime_type: string | null;
+  filename: string | null;
+  file_size: number | null;
+  media_url_path: string | null;
+};
+
+export type SerializedMessage = {
+  id: string;
+  conversationId: string;
+  tenantId: string;
+  customerId: string | null;
+  direction: string;
+  senderType: SenderType;
+  senderPhone: string;
+  receiverPhone: string;
+  content_text: string;
+  content_type: ContentType;
+  audio_transcript: string | null;
+  contentTextSnapshot: string | null;
+  customerEditedAt: Date | null;
+  customerRevokedAt: Date | null;
+  external_id: string | null;
+  whatsapp_delivery_status: WhatsappDeliveryStatus | null;
+  whatsapp_delivery_error_code: number | null;
+  whatsapp_delivery_error_message: string | null;
+  media_ingest_failed: boolean;
+  media_ingest_error: string | null;
+  interactive: OutboundInteractiveMessage | null;
+  template_name: string | null;
+  template: SerializedOutboundTemplate | null;
+  aiGenerated: boolean;
+  reply_to_message_id: string | null;
+  quoted_text: string | null;
+  quoted_sender_type: SenderType | null;
+  replyToExternalId: string | null;
+  created_at: Date;
+  media: SerializedMessageMedia;
+};
+
+export function serializeMessage(message: Message): SerializedMessage {
+  const hasMedia = Boolean(message.mediaStoragePath && message.mediaStorageBucket);
+  const mediaIngest = readInboundMediaIngestState(message.rawPayloadJson);
+  const template = readStoredOutboundTemplate(message.rawPayloadJson);
+
+  return {
+    id: message.id,
+    conversationId: message.conversationId,
+    tenantId: message.tenantId,
+    customerId: message.customerId,
+    direction: message.direction,
+    senderType: message.senderType,
+    senderPhone: message.senderPhone,
+    receiverPhone: message.receiverPhone,
+    content_text: message.contentText,
+    content_type: message.contentType,
+    audio_transcript: message.audioTranscript,
+    contentTextSnapshot: message.contentTextSnapshot,
+    customerEditedAt: message.customerEditedAt,
+    customerRevokedAt: message.customerRevokedAt,
+    external_id: message.externalId,
+    whatsapp_delivery_status: message.whatsappDeliveryStatus,
+    whatsapp_delivery_error_code: message.whatsappDeliveryErrorCode,
+    whatsapp_delivery_error_message: message.whatsappDeliveryErrorMessage,
+    media_ingest_failed: mediaIngest.failed,
+    media_ingest_error: mediaIngest.error,
+    interactive: readStoredOutboundInteractive(message.rawPayloadJson),
+    template_name: template?.name ?? null,
+    template,
+    aiGenerated: message.aiGenerated,
+    reply_to_message_id: message.replyToMessageId,
+    quoted_text: message.quotedText,
+    quoted_sender_type: message.quotedSenderType,
+    replyToExternalId: message.replyToExternalId,
+    created_at: message.createdAt,
+    media: {
+      has_media: hasMedia,
+      mime_type: message.mediaMimeType,
+      filename: message.mediaFilename,
+      file_size: message.mediaFileSize,
+      media_url_path: hasMedia ? `/messages/${message.id}/media-url` : null
+    }
+  };
+}
+
+function readStoredOutboundTemplate(rawPayloadJson: unknown): SerializedOutboundTemplate | null {
+  if (!rawPayloadJson || typeof rawPayloadJson !== "object") return null;
+  const outbound = (rawPayloadJson as { outbound?: { template?: unknown } }).outbound;
+  const template = outbound?.template;
+  if (!template || typeof template !== "object") return null;
+  const row = template as { name?: unknown; language?: unknown; body_parameters?: unknown };
+  if (typeof row.name !== "string" || typeof row.language !== "string") return null;
+  return {
+    name: row.name,
+    language: row.language,
+    body_parameters: Array.isArray(row.body_parameters)
+      ? row.body_parameters.filter((item): item is string => typeof item === "string")
+      : []
+  };
+}

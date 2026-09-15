@@ -1,9 +1,44 @@
 import { whatsappWebhookSchema } from "./whatsapp.schemas.js";
+import { extractEditedMessageText } from "./extract-edited-message-text.js";
 import type {
   NormalizedIncomingMessage,
   NormalizedIncomingReaction,
-  NormalizedWebhookEvent
+  NormalizedIncomingEdit,
+  NormalizedIncomingRevoke,
+  NormalizedMessageStatus,
+  NormalizedTemplateStatusUpdate,
+  NormalizedWebhookEvent,
+  ReplyContext
 } from "../../types/whatsapp.js";
+import { parseWhatsappDeliveryErrors } from "../../utils/whatsapp-delivery-error.js";
+
+const META_STATUS_VALUES = new Set(["sent", "delivered", "read", "failed"]);
+
+function readReplyContext(message: {
+  context?: { id: string; from?: string | undefined; referred_product?: unknown } | undefined;
+}): ReplyContext | undefined {
+  if (!message.context?.id) {
+    return undefined;
+  }
+
+  return {
+    externalMessageId: message.context.id,
+    ...(message.context.from ? { fromPhone: message.context.from } : {})
+  };
+}
+
+function withReplyContext<T extends NormalizedIncomingMessage>(
+  item: T,
+  message: {
+    context?: { id: string; from?: string | undefined; referred_product?: unknown } | undefined;
+  }
+): T {
+  const replyContext = readReplyContext(message);
+  if (replyContext) {
+    item.replyContext = replyContext;
+  }
+  return item;
+}
 
 export function normalizeWebhookEvents(payload: unknown): NormalizedWebhookEvent[] {
   const parsed = whatsappWebhookSchema.parse(payload);
@@ -12,13 +47,61 @@ export function normalizeWebhookEvents(payload: unknown): NormalizedWebhookEvent
   for (const entry of parsed.entry) {
     for (const change of entry.changes) {
       const value = change.value;
+      const isTemplateStatus =
+        change.field === "message_template_status_update" ||
+        Boolean(value.message_template_name);
+
+      if (isTemplateStatus && value.message_template_name) {
+        const templateStatus: NormalizedTemplateStatusUpdate = {
+          kind: "template_status",
+          wabaId: entry.id ?? "",
+          name: value.message_template_name,
+          language: value.message_template_language ?? "es",
+          event: value.event ?? "PENDING",
+          timestamp: new Date(),
+          rawPayload: payload
+        };
+        if (value.message_template_id != null) {
+          templateStatus.metaTemplateId = String(value.message_template_id);
+        }
+        if (value.reason) templateStatus.reason = value.reason;
+        normalized.push(templateStatus);
+        continue;
+      }
+
+      const toPhoneDisplay = value.metadata?.display_phone_number;
+      const toPhoneNumberId = value.metadata?.phone_number_id ?? "";
+
+      if (value.statuses?.length) {
+        for (const statusRow of value.statuses) {
+          const status = statusRow.status.toLowerCase();
+          if (!META_STATUS_VALUES.has(status)) {
+            continue;
+          }
+
+          const deliveryError = parseWhatsappDeliveryErrors(statusRow.errors) ?? undefined;
+          const item: NormalizedMessageStatus = {
+            kind: "status",
+            externalMessageId: statusRow.id,
+            recipientPhone: statusRow.recipient_id ?? "",
+            toPhoneNumberId,
+            status: status as NormalizedMessageStatus["status"],
+            timestamp: statusRow.timestamp
+              ? new Date(Number(statusRow.timestamp) * 1000)
+              : new Date(),
+            rawPayload: payload,
+            ...(deliveryError ? { deliveryError } : {})
+          };
+          if (toPhoneDisplay) item.toPhoneDisplay = toPhoneDisplay;
+          normalized.push(item);
+        }
+      }
+
       if (!value.messages?.length) {
         continue;
       }
 
       const fromName = value.contacts?.[0]?.profile?.name;
-      const toPhoneDisplay = value.metadata?.display_phone_number;
-      const toPhoneNumberId = value.metadata?.phone_number_id ?? "";
 
       for (const message of value.messages) {
         const timestamp = message.timestamp
@@ -42,6 +125,160 @@ export function normalizeWebhookEvents(payload: unknown): NormalizedWebhookEvent
           continue;
         }
 
+        if (message.type === "edit" && "edit" in message) {
+          const text = extractEditedMessageText(message.edit.message);
+          if (!text) {
+            continue;
+          }
+
+          const edit: NormalizedIncomingEdit = {
+            kind: "edit",
+            externalMessageId: message.id,
+            fromPhone: message.from,
+            toPhoneNumberId,
+            originalMessageId: message.edit.original_message_id,
+            text,
+            timestamp,
+            rawPayload: payload
+          };
+          if (fromName) edit.fromName = fromName;
+          if (toPhoneDisplay) edit.toPhoneDisplay = toPhoneDisplay;
+          normalized.push(edit);
+          continue;
+        }
+
+        if (message.type === "revoke" && "revoke" in message) {
+          const revoke: NormalizedIncomingRevoke = {
+            kind: "revoke",
+            externalMessageId: message.id,
+            fromPhone: message.from,
+            toPhoneNumberId,
+            originalMessageId: message.revoke.original_message_id,
+            timestamp,
+            rawPayload: payload
+          };
+          if (fromName) revoke.fromName = fromName;
+          if (toPhoneDisplay) revoke.toPhoneDisplay = toPhoneDisplay;
+          normalized.push(revoke);
+          continue;
+        }
+
+        if (message.type === "interactive" && "interactive" in message) {
+          if (message.interactive.type === "button_reply") {
+            const item: NormalizedIncomingMessage = {
+              kind: "message",
+              externalMessageId: message.id,
+              fromPhone: message.from,
+              toPhoneNumberId,
+              text: message.interactive.button_reply.title,
+              timestamp,
+              interactiveSelection: {
+                id: message.interactive.button_reply.id,
+                title: message.interactive.button_reply.title,
+                type: "button"
+              },
+              rawPayload: payload
+            };
+            if (fromName) item.fromName = fromName;
+            if (toPhoneDisplay) item.toPhoneDisplay = toPhoneDisplay;
+            normalized.push(withReplyContext(item, message));
+            continue;
+          }
+
+          if (message.interactive.type === "list_reply") {
+            const item: NormalizedIncomingMessage = {
+              kind: "message",
+              externalMessageId: message.id,
+              fromPhone: message.from,
+              toPhoneNumberId,
+              text: message.interactive.list_reply.title,
+              timestamp,
+              interactiveSelection: {
+                id: message.interactive.list_reply.id,
+                title: message.interactive.list_reply.title,
+                type: "list"
+              },
+              rawPayload: payload
+            };
+            if (fromName) item.fromName = fromName;
+            if (toPhoneDisplay) item.toPhoneDisplay = toPhoneDisplay;
+            normalized.push(withReplyContext(item, message));
+            continue;
+          }
+        }
+
+        if (message.type === "image" && "image" in message) {
+          const caption = message.image.caption?.trim();
+          const item: NormalizedIncomingMessage = {
+            kind: "message",
+            externalMessageId: message.id,
+            fromPhone: message.from,
+            toPhoneNumberId,
+            text: caption || "[Imagen]",
+            timestamp,
+            media: {
+              type: "image",
+              mediaId: message.image.id,
+              ...(message.image.mime_type ? { mimeType: message.image.mime_type } : {}),
+              ...(caption ? { caption } : {})
+            },
+            rawPayload: payload
+          };
+          if (fromName) item.fromName = fromName;
+          if (toPhoneDisplay) item.toPhoneDisplay = toPhoneDisplay;
+          normalized.push(withReplyContext(item, message));
+          continue;
+        }
+
+        if (message.type === "document" && "document" in message) {
+          const caption = message.document.caption?.trim();
+          const item: NormalizedIncomingMessage = {
+            kind: "message",
+            externalMessageId: message.id,
+            fromPhone: message.from,
+            toPhoneNumberId,
+            text: caption || message.document.filename || "[Documento]",
+            timestamp,
+            media: {
+              type: "document",
+              mediaId: message.document.id,
+              ...(message.document.mime_type ? { mimeType: message.document.mime_type } : {}),
+              ...(message.document.filename ? { filename: message.document.filename } : {}),
+              ...(caption ? { caption } : {})
+            },
+            rawPayload: payload
+          };
+          if (fromName) item.fromName = fromName;
+          if (toPhoneDisplay) item.toPhoneDisplay = toPhoneDisplay;
+          normalized.push(withReplyContext(item, message));
+          continue;
+        }
+
+        if (
+          (message.type === "audio" || message.type === "voice") &&
+          "audio" in message
+        ) {
+          const item: NormalizedIncomingMessage = {
+            kind: "message",
+            externalMessageId: message.id,
+            fromPhone: message.from,
+            toPhoneNumberId,
+            text: "[Audio]",
+            timestamp,
+            media: {
+              type: "audio",
+              mediaId: message.audio.id,
+              ...(message.audio.mime_type ? { mimeType: message.audio.mime_type } : {}),
+              voice: message.type === "voice"
+            },
+            rawPayload: payload
+          };
+          if (fromName) item.fromName = fromName;
+          if (toPhoneDisplay) item.toPhoneDisplay = toPhoneDisplay;
+          normalized.push(withReplyContext(item, message));
+          continue;
+        }
+
         if (!("text" in message)) {
           continue;
         }
@@ -62,14 +299,7 @@ export function normalizeWebhookEvents(payload: unknown): NormalizedWebhookEvent
         };
         if (fromName) item.fromName = fromName;
         if (toPhoneDisplay) item.toPhoneDisplay = toPhoneDisplay;
-        if ("context" in message && message.context?.id) {
-          item.replyContext = {
-            externalMessageId: message.context.id,
-            ...(message.context.from ? { fromPhone: message.context.from } : {})
-          };
-        }
-
-        normalized.push(item);
+        normalized.push(withReplyContext(item, message));
       }
     }
   }

@@ -1,7 +1,6 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { paramId } from "../../../utils/params.js";
-import { requireTenantExists } from "../../../utils/tenant-resource.js";
 import { toneAnalysisService } from "../services/tone-analysis.service.js";
 
 const approveSchema = z.object({
@@ -12,12 +11,14 @@ const approveSchema = z.object({
 
 export async function getConsolidatedToneAnalysis(req: Request, res: Response) {
   const businessId = paramId(req, "businessId");
-  if (!(await requireTenantExists(businessId))) {
-    res.status(404).json({ error: "Business not found" });
+  const useAi = req.query.ai === "true";
+
+  const pendingCount = await toneAnalysisService.countPendingForConsolidation(businessId);
+  if (pendingCount === 0) {
+    res.status(404).json({ error: "Tone analysis not found" });
     return;
   }
 
-  const useAi = req.query.ai === "true";
   const consolidated = await toneAnalysisService.getConsolidated(businessId, useAi);
   if (!consolidated) {
     res.status(404).json({ error: "Tone analysis not found" });

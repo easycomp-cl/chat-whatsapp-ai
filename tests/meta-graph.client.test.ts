@@ -1,0 +1,197 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  mapOAuthGraphError,
+  MetaGraphClient
+} from "../src/modules/meta/meta-graph.client.js";
+
+describe("mapOAuthGraphError", () => {
+  it("maps expired authorization codes", () => {
+    const error = mapOAuthGraphError(400, {
+      error: { message: "This authorization code has expired", code: 100 }
+    });
+    expect(error.code).toBe("code_expired");
+    expect(error.statusCode).toBe(400);
+  });
+
+  it("maps reused authorization codes", () => {
+    const error = mapOAuthGraphError(400, {
+      error: { message: "This authorization code has been used" }
+    });
+    expect(error.code).toBe("code_reused");
+    expect(error.statusCode).toBe(409);
+  });
+
+  it("maps redirect_uri mismatches", () => {
+    const error = mapOAuthGraphError(400, {
+      error: { message: "Error validating verification code. Please make sure your redirect_uri is identical" }
+    });
+    expect(error.code).toBe("invalid_redirect_uri");
+  });
+
+  it("maps generic invalid codes", () => {
+    const error = mapOAuthGraphError(400, {
+      error: { message: "Invalid verification code", code: 100 }
+    });
+    expect(error.code).toBe("invalid_code");
+  });
+});
+
+describe("MetaGraphClient", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("exchanges an Embedded Signup code without logging secrets", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ access_token: "EAA_test_token", token_type: "bearer", expires_in: 5184000 })
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new MetaGraphClient({
+      graphVersion: "v21.0",
+      appId: "1642810900259407",
+      appSecret: "app-secret"
+    });
+
+    const token = await client.exchangeCodeForToken("AQBx-code");
+    expect(token.accessToken).toBe("EAA_test_token");
+    expect(token.expiresIn).toBe(5184000);
+
+    const calledUrl = String(fetchMock.mock.calls[0]?.[0]);
+    expect(calledUrl).toContain("oauth/access_token");
+    expect(calledUrl).toContain("client_id=1642810900259407");
+    expect(calledUrl).toContain("code=AQBx-code");
+    expect(calledUrl).not.toContain("redirect_uri");
+  });
+
+  it("exchanges an FB.login code without redirect_uri even if one is configured", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ access_token: "EAA_sdk_token", token_type: "bearer" })
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new MetaGraphClient({
+      graphVersion: "v25.0",
+      appId: "app",
+      appSecret: "secret",
+      redirectUri: "https://chatbotmanager.easycomp.cl/onboarding/whatsapp/callback"
+    });
+
+    const token = await client.exchangeCodeForToken("AQBx-sdk-code");
+    expect(token.accessToken).toBe("EAA_sdk_token");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("redirect_uri");
+  });
+
+  it("retries with the configured redirect_uri if Meta rejects the first attempt", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          error: {
+            message:
+              "Error validating verification code. Please make sure your redirect_uri is identical"
+          }
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ access_token: "EAA_redirect_token", token_type: "bearer" })
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new MetaGraphClient({
+      graphVersion: "v25.0",
+      appId: "app",
+      appSecret: "secret",
+      redirectUri: "https://chatbotmanager.easycomp.cl/onboarding/whatsapp/callback"
+    });
+
+    const token = await client.exchangeCodeForToken("AQBx-redirect-code");
+    expect(token.accessToken).toBe("EAA_redirect_token");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("redirect_uri");
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain(
+      "redirect_uri=https%3A%2F%2Fchatbotmanager.easycomp.cl%2Fonboarding%2Fwhatsapp%2Fcallback"
+    );
+  });
+
+  it("subscribes the WABA with the customer token", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new MetaGraphClient({
+      graphVersion: "v21.0",
+      appId: "app",
+      appSecret: "secret"
+    });
+
+    await client.subscribeWaba("waba-1", "EAA_customer");
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toContain("/waba-1/subscribed_apps");
+    expect((init as RequestInit).method).toBe("POST");
+    expect((init as RequestInit).headers).toMatchObject({
+      Authorization: "Bearer EAA_customer"
+    });
+  });
+
+  it("registers a phone number with PIN for two-step verification", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new MetaGraphClient({
+      graphVersion: "v21.0",
+      appId: "app",
+      appSecret: "secret"
+    });
+
+    await client.registerPhoneNumber("1259543080583373", "EAA_customer", "123456");
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toContain("/1259543080583373/register");
+    expect((init as RequestInit).method).toBe("POST");
+    expect((init as RequestInit).headers).toMatchObject({
+      Authorization: "Bearer EAA_customer",
+      "Content-Type": "application/json"
+    });
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body).toEqual({
+      messaging_product: "whatsapp",
+      pin: "123456"
+    });
+  });
+
+  it("throws register_failed error when phone registration fails", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({
+        error: {
+          message: "Invalid pin",
+          code: 100
+        }
+      })
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new MetaGraphClient({
+      graphVersion: "v21.0",
+      appId: "app",
+      appSecret: "secret"
+    });
+
+    await expect(
+      client.registerPhoneNumber("1259543080583373", "EAA_customer", "wrong-pin")
+    ).rejects.toThrow();
+    
+    try {
+      await client.registerPhoneNumber("1259543080583373", "EAA_customer", "wrong-pin");
+    } catch (error: any) {
+      expect(error.code).toBe("register_failed");
+      expect(error.statusCode).toBe(400);
+    }
+  });
+});

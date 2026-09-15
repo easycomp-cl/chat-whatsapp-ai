@@ -1,7 +1,13 @@
-import { Worker } from "bullmq";
+import { UnrecoverableError, Worker } from "bullmq";
 import { logger } from "../../lib/logger.js";
-import { MessageRouterService } from "../router/message-router.service.js";
+import {
+  isNonRetryableWhatsAppError,
+  MessageRouterService
+} from "../router/message-router.service.js";
 import { ReactionRouterService } from "../router/reaction-router.service.js";
+import { MessageUpdateRouterService } from "../router/message-update-router.service.js";
+import { DeliveryStatusRouterService } from "../router/delivery-status-router.service.js";
+import { whatsappTemplatesService } from "../whatsapp-templates/whatsapp-templates.service.js";
 import { bullmqConnection, bullmqWorkerOptions } from "./bullmq.config.js";
 import { MESSAGE_QUEUE_NAME, type MessageJobData } from "./message.queue.js";
 
@@ -14,16 +20,48 @@ export function startMessageWorker() {
 
   const router = new MessageRouterService();
   const reactionRouter = new ReactionRouterService();
+  const messageUpdateRouter = new MessageUpdateRouterService();
+  const deliveryStatusRouter = new DeliveryStatusRouterService();
 
   worker = new Worker<MessageJobData>(
     MESSAGE_QUEUE_NAME,
     async (job) => {
-      const { event } = job.data;
-      if (event.kind === "reaction") {
-        await reactionRouter.route(event);
-        return;
+      try {
+        const { event } = job.data;
+        if (event.kind === "status") {
+          await deliveryStatusRouter.route(event);
+          return;
+        }
+        if (event.kind === "template_status") {
+          await whatsappTemplatesService.applyStatusUpdate({
+            wabaId: event.wabaId,
+            name: event.name,
+            language: event.language,
+            event: event.event,
+            ...(event.metaTemplateId ? { metaTemplateId: event.metaTemplateId } : {}),
+            ...(event.reason ? { reason: event.reason } : {})
+          });
+          return;
+        }
+        if (event.kind === "reaction") {
+          await reactionRouter.route(event);
+          return;
+        }
+        if (event.kind === "edit") {
+          await messageUpdateRouter.routeEdit(event);
+          return;
+        }
+        if (event.kind === "revoke") {
+          await messageUpdateRouter.routeRevoke(event);
+          return;
+        }
+        await router.route(event);
+      } catch (err) {
+        if (isNonRetryableWhatsAppError(err)) {
+          throw new UnrecoverableError(err.message);
+        }
+        throw err;
       }
-      await router.route(event);
     },
     {
       connection: bullmqConnection,

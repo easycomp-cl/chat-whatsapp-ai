@@ -183,6 +183,16 @@ export class ToneAnalysisService {
     });
   }
 
+  async countPendingForConsolidation(tenantId: string) {
+    return prisma.toneAnalysisResult.count({
+      where: {
+        tenantId,
+        status: "PENDING_REVIEW",
+        importJob: { status: "COMPLETED" }
+      }
+    });
+  }
+
   async listPendingForConsolidation(tenantId: string) {
     return prisma.toneAnalysisResult.findMany({
       where: {

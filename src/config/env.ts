@@ -10,10 +10,14 @@ const envSchema = z.object({
   REDIS_URL: z.string().default("redis://localhost:6379"),
   WHATSAPP_VERIFY_TOKEN: z.string().min(1),
   WHATSAPP_GRAPH_VERSION: z.string().default("v20.0"),
+  META_APP_ID: z.string().min(1).default("1642810900259407"),
   META_APP_SECRET: z.string().min(1),
   META_SYSTEM_USER_ACCESS_TOKEN: z.string().min(1).optional(),
+  META_EMBEDDED_SIGNUP_CONFIG_ID: z.string().min(1).default("1919146745399628"),
+  META_OAUTH_REDIRECT_URI: z.string().url().optional(),
+  CORS_ALLOWED_ORIGINS: z.string().optional(),
   OPENAI_API_KEY: z.string().min(1),
-  OPENAI_MODEL: z.string().default("gpt-4o-mini"),
+  OPENAI_MODEL: z.string().default("gpt-5.6-luna"),
   OPENAI_EMBEDDING_MODEL: z.string().default("text-embedding-3-small"),
   ENCRYPTION_SECRET: z.string().min(32),
   INTERNAL_API_KEY: z.string().min(1),
@@ -21,6 +25,11 @@ const envSchema = z.object({
   FAQ_SIMILARITY_THRESHOLD: z.coerce.number().min(0).max(1).default(0.80),
   STORAGE_PATH: z.string().default("./storage"),
   SHOPIFY_API_VERSION: z.string().default("2024-10"),
+  SUPABASE_URL: z.string().url().optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
+  SUPABASE_FLOW_FILES_BUCKET: z.string().default("flow-files"),
+  SUPABASE_CHAT_MEDIA_BUCKET: z.string().default("chat-media"),
+  FLOW_WEBHOOK_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(5),
   SKIP_WEBHOOK_SIGNATURE: z
     .string()
     .optional()

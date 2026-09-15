@@ -3,6 +3,15 @@ export type ReplyContext = {
   fromPhone?: string;
 };
 
+export type IncomingMediaAttachment = {
+  type: "image" | "document" | "audio";
+  mediaId: string;
+  mimeType?: string;
+  filename?: string;
+  caption?: string;
+  voice?: boolean;
+};
+
 export type NormalizedIncomingMessage = {
   kind: "message";
   externalMessageId: string;
@@ -13,6 +22,12 @@ export type NormalizedIncomingMessage = {
   text: string;
   timestamp: Date;
   replyContext?: ReplyContext;
+  interactiveSelection?: {
+    id: string;
+    title: string;
+    type: "button" | "list";
+  };
+  media?: IncomingMediaAttachment;
   rawPayload: unknown;
 };
 
@@ -29,7 +44,68 @@ export type NormalizedIncomingReaction = {
   rawPayload: unknown;
 };
 
-export type NormalizedWebhookEvent = NormalizedIncomingMessage | NormalizedIncomingReaction;
+export type NormalizedIncomingEdit = {
+  kind: "edit";
+  externalMessageId: string;
+  fromPhone: string;
+  fromName?: string;
+  toPhoneNumberId: string;
+  toPhoneDisplay?: string;
+  originalMessageId: string;
+  text: string;
+  timestamp: Date;
+  rawPayload: unknown;
+};
+
+export type NormalizedIncomingRevoke = {
+  kind: "revoke";
+  externalMessageId: string;
+  fromPhone: string;
+  fromName?: string;
+  toPhoneNumberId: string;
+  toPhoneDisplay?: string;
+  originalMessageId: string;
+  timestamp: Date;
+  rawPayload: unknown;
+};
+
+export type WhatsappDeliveryErrorDetail = {
+  code: number;
+  title: string;
+  message: string;
+};
+
+export type NormalizedMessageStatus = {
+  kind: "status";
+  externalMessageId: string;
+  recipientPhone: string;
+  toPhoneNumberId: string;
+  toPhoneDisplay?: string;
+  status: "sent" | "delivered" | "read" | "failed";
+  timestamp: Date;
+  deliveryError?: WhatsappDeliveryErrorDetail;
+  rawPayload: unknown;
+};
+
+export type NormalizedTemplateStatusUpdate = {
+  kind: "template_status";
+  wabaId: string;
+  name: string;
+  language: string;
+  event: string;
+  metaTemplateId?: string;
+  reason?: string;
+  timestamp: Date;
+  rawPayload: unknown;
+};
+
+export type NormalizedWebhookEvent =
+  | NormalizedIncomingMessage
+  | NormalizedIncomingReaction
+  | NormalizedIncomingEdit
+  | NormalizedIncomingRevoke
+  | NormalizedMessageStatus
+  | NormalizedTemplateStatusUpdate;
 
 export type OutboundMessage = {
   to: string;

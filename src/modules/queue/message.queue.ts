@@ -25,7 +25,24 @@ export function getMessageQueue(): Queue<MessageJobData> {
   return messageQueue;
 }
 
+function sanitizeQueueJobId(value: string): string {
+  return value.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+export { sanitizeQueueJobId };
+
 export async function enqueueWebhookEvent(event: NormalizedWebhookEvent) {
   const queue = getMessageQueue();
-  await queue.add("process", { event }, { jobId: event.externalMessageId ?? undefined });
+  const jobId =
+    event.kind === "status"
+      ? sanitizeQueueJobId(
+          `status-${event.externalMessageId}-${event.status}-${event.timestamp.getTime()}`
+        )
+      : event.kind === "template_status"
+        ? sanitizeQueueJobId(
+            `tpl-${event.wabaId}-${event.name}-${event.language}-${event.event}-${event.timestamp.getTime()}`
+          )
+        : sanitizeQueueJobId(event.externalMessageId);
+
+  await queue.add("process", { event }, { jobId });
 }

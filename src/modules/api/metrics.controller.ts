@@ -32,3 +32,12 @@ export async function getMetricsUsage(req: Request, res: Response) {
   const usage = await metricsService.getUsage(businessId, from, to);
   res.json(usage);
 }
+
+export async function getMetricsDashboard(req: Request, res: Response) {
+  const businessId = paramId(req, "businessId");
+  const from = parseDate(req.query.from);
+  const to = parseDate(req.query.to);
+  const limit = Number(req.query.limit ?? 10);
+  const dashboard = await metricsService.getDashboard(businessId, from, to, limit);
+  res.json(dashboard);
+}

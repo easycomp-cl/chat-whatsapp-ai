@@ -3,7 +3,7 @@
 # Uso:
 #   .\scripts\aws-staging-start.ps1
 #
-# Tras ~2-3 min verifica: curl https://api.conversai.easycomp.cl/health
+# Tras ~2-3 min verifica: curl https://api-chatbotmanager.easycomp.cl/health
 
 param(
   [string]$Region = "sa-east-1",
@@ -35,6 +35,6 @@ if ($LASTEXITCODE -ne 0) { throw "Fallo al actualizar el servicio ECS" }
 Write-Host "OK. desired-count = $($result.service.desiredCount)" -ForegroundColor Green
 Write-Host ""
 Write-Host "Espera 2-3 min y prueba:" -ForegroundColor Cyan
-Write-Host "  curl https://api.conversai.easycomp.cl/health"
+Write-Host "  curl https://api-chatbotmanager.easycomp.cl/health"
 Write-Host ""
 Write-Host "Para apagar cuando termines: .\scripts\aws-staging-stop.ps1"

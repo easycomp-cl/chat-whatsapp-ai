@@ -6,5 +6,7 @@ describe("Handoff labels", () => {
     expect(HANDOFF_REASON_LABELS.user_requested_human).toContain("humano");
     expect(HANDOFF_REASON_LABELS.low_rag_confidence).toContain("RAG");
     expect(HANDOFF_REASON_LABELS.complaint).toContain("Reclamo");
+    expect(HANDOFF_REASON_LABELS.repeated_failure).toContain("intentos");
+    expect(HANDOFF_REASON_LABELS.customer_frustrated).toContain("frustración");
   });
 });

@@ -13,12 +13,28 @@ import {
   patchBusinessSettings,
   patchFaq
 } from "./businesses.controller.js";
+import { getBotPersonality, patchBotPersonality } from "./bot-personality.controller.js";
+import {
+  completeOnboarding,
+  getSetupStatus,
+  patchOnboarding
+} from "./onboarding.controller.js";
 import {
   getConversation,
   listConversations,
+  listConversationsInbox,
   patchConversationMode
 } from "./conversations.controller.js";
-import { sendConversationMessage } from "./messages.controller.js";
+import {
+  sendConversationMessage,
+  sendConversationInteractiveMessage,
+  resendOutboundMessage,
+  editOutboundMessage,
+  sendConversationMediaMessage,
+  conversationMediaUploadMiddleware
+} from "./messages.controller.js";
+import { getMessageMediaUrl, streamMessageMediaFile } from "./message-media.controller.js";
+import { getCustomerProfile, patchCustomerProfileHandler } from "./customers.controller.js";
 import {
   connectShopify,
   getShopifyIntegration,
@@ -49,6 +65,7 @@ import {
   uploadKnowledgeDocument
 } from "./knowledge.controller.js";
 import {
+  getMetricsDashboard,
   getMetricsQuestions,
   getMetricsSummary,
   getMetricsUsage
@@ -75,6 +92,52 @@ import {
   approveToneAnalysis,
   getConsolidatedToneAnalysis
 } from "../chat-analysis/controllers/tone-analysis.controller.js";
+import {
+  createFlow,
+  createFlowVersion,
+  deleteFlow,
+  getFlow,
+  getFlowVersion,
+  listFlows,
+  listFlowVersions,
+  patchFlow,
+  publishFlowVersion,
+  simulateFlow,
+  updateFlowVersion
+} from "./flows.controller.js";
+import {
+  cancelFlowRun,
+  getFlowRun,
+  listFlowReviews,
+  pauseFlowRun,
+  resolveFlowReview,
+  resumeFlowRun,
+  retryFlowRun,
+  startConversationFlow,
+  submitFlowRunAgentInput
+} from "./flow-runs.controller.js";
+import { startFlowByApi } from "./flow-triggers.controller.js";
+import { getFlowFileSignedUrl } from "./flow-files.controller.js";
+import {
+  getFlowWebhookDelivery,
+  listFlowWebhookDeliveries,
+  retryFlowWebhookDelivery
+} from "./flow-webhook-deliveries.controller.js";
+import {
+  getFlowWebhookIntegration,
+  upsertFlowWebhookIntegration
+} from "./flow-webhook-integration.controller.js";
+import {
+  completeEmbeddedSignup,
+  getWhatsappConnection,
+  sendWhatsappTestMessage
+} from "./whatsapp-connection.controller.js";
+import { embeddedSignupCompleteLimiter } from "../whatsapp-connection/whatsapp-connection.rate-limit.js";
+import {
+  listWhatsappTemplates,
+  provisionDefaultWhatsappTemplates,
+  sendConversationTemplateMessage
+} from "./whatsapp-templates.controller.js";
 
 export function createApiRouter() {
   const router = Router();
@@ -84,14 +147,53 @@ export function createApiRouter() {
   router.post("/businesses", createBusiness);
   router.get("/businesses/:id", getBusiness);
   router.patch("/businesses/:id/settings", patchBusinessSettings);
+  router.get("/businesses/:id/bot-personality", getBotPersonality);
+  router.patch("/businesses/:id/bot-personality", patchBotPersonality);
+  router.get("/businesses/:id/setup-status", getSetupStatus);
+  router.patch("/businesses/:id/onboarding", patchOnboarding);
+  router.post("/businesses/:id/onboarding/complete", completeOnboarding);
   router.post("/businesses/:id/whatsapp-accounts", createWhatsappAccount);
+  router.post(
+    "/whatsapp/embedded-signup/complete",
+    embeddedSignupCompleteLimiter,
+    completeEmbeddedSignup
+  );
+  router.post(
+    "/businesses/:id/whatsapp/embedded-signup/complete",
+    embeddedSignupCompleteLimiter,
+    completeEmbeddedSignup
+  );
+  router.get("/whatsapp/connection", getWhatsappConnection);
+  router.get("/businesses/:id/whatsapp/connection", getWhatsappConnection);
+  router.post("/whatsapp/connection/test-message", sendWhatsappTestMessage);
+  router.post("/businesses/:id/whatsapp/connection/test-message", sendWhatsappTestMessage);
+  router.get("/businesses/:id/whatsapp/templates", listWhatsappTemplates);
+  router.post(
+    "/businesses/:id/whatsapp/templates/provision-defaults",
+    provisionDefaultWhatsappTemplates
+  );
   router.post("/businesses/:id/agents", createAgent);
   router.patch("/agents/:id", patchAgent);
 
+  router.get("/businesses/:businessId/conversations/inbox", listConversationsInbox);
   router.get("/businesses/:businessId/conversations", listConversations);
   router.get("/conversations/:id", getConversation);
   router.patch("/conversations/:id/mode", patchConversationMode);
   router.post("/conversations/:id/messages", sendConversationMessage);
+  router.post("/conversations/:id/messages/interactive", sendConversationInteractiveMessage);
+  router.post("/conversations/:id/messages/template", sendConversationTemplateMessage);
+  router.post(
+    "/conversations/:id/messages/media",
+    conversationMediaUploadMiddleware,
+    sendConversationMediaMessage
+  );
+  router.get("/messages/:id/media-url", getMessageMediaUrl);
+  router.get("/messages/:id/media/file", streamMessageMediaFile);
+  router.post("/messages/:id/resend", resendOutboundMessage);
+  router.patch("/messages/:id", editOutboundMessage);
+
+  router.get("/businesses/:businessId/customers/:customerId", getCustomerProfile);
+  router.patch("/businesses/:businessId/customers/:customerId", patchCustomerProfileHandler);
 
   router.get("/businesses/:businessId/faqs", listFaqs);
   router.post("/businesses/:businessId/faqs", createFaq);
@@ -140,6 +242,7 @@ export function createApiRouter() {
   router.post("/businesses/:businessId/delivery/reindex", rebuildDeliveryIndex);
 
   router.get("/businesses/:businessId/metrics/summary", getMetricsSummary);
+  router.get("/businesses/:businessId/metrics/dashboard", getMetricsDashboard);
   router.get("/businesses/:businessId/metrics/questions", getMetricsQuestions);
   router.get("/businesses/:businessId/metrics/usage", getMetricsUsage);
 
@@ -181,6 +284,44 @@ export function createApiRouter() {
   router.patch(
     "/businesses/:businessId/tone-analysis/:toneAnalysisId/approve",
     approveToneAnalysis
+  );
+
+  router.get("/businesses/:businessId/flows", listFlows);
+  router.post("/businesses/:businessId/flows", createFlow);
+  router.get("/businesses/:businessId/flows/:flowId", getFlow);
+  router.patch("/businesses/:businessId/flows/:flowId", patchFlow);
+  router.delete("/businesses/:businessId/flows/:flowId", deleteFlow);
+  router.get("/businesses/:businessId/flows/:flowId/versions", listFlowVersions);
+  router.post("/businesses/:businessId/flows/:flowId/versions", createFlowVersion);
+  router.get("/businesses/:businessId/flows/:flowId/versions/:versionId", getFlowVersion);
+  router.patch("/businesses/:businessId/flows/:flowId/versions/:versionId", updateFlowVersion);
+  router.post(
+    "/businesses/:businessId/flows/:flowId/versions/:versionId/publish",
+    publishFlowVersion
+  );
+  router.post("/businesses/:businessId/flows/:flowId/simulate", simulateFlow);
+  router.post("/businesses/:businessId/flows/:flowId/start-by-api", startFlowByApi);
+
+  router.post(
+    "/businesses/:businessId/conversations/:conversationId/flows/:flowId/start",
+    startConversationFlow
+  );
+  router.get("/businesses/:businessId/flow-runs/:runId", getFlowRun);
+  router.post("/businesses/:businessId/flow-runs/:runId/pause", pauseFlowRun);
+  router.post("/businesses/:businessId/flow-runs/:runId/resume", resumeFlowRun);
+  router.post("/businesses/:businessId/flow-runs/:runId/cancel", cancelFlowRun);
+  router.post("/businesses/:businessId/flow-runs/:runId/retry", retryFlowRun);
+  router.post("/businesses/:businessId/flow-runs/:runId/agent-input", submitFlowRunAgentInput);
+  router.get("/businesses/:businessId/flow-reviews", listFlowReviews);
+  router.post("/businesses/:businessId/flow-reviews/:reviewId/resolve", resolveFlowReview);
+  router.get("/businesses/:businessId/flow-files/:fileId/signed-url", getFlowFileSignedUrl);
+  router.get("/businesses/:businessId/integrations/flow-webhook", getFlowWebhookIntegration);
+  router.put("/businesses/:businessId/integrations/flow-webhook", upsertFlowWebhookIntegration);
+  router.get("/businesses/:businessId/flow-webhook-deliveries", listFlowWebhookDeliveries);
+  router.get("/businesses/:businessId/flow-webhook-deliveries/:deliveryId", getFlowWebhookDelivery);
+  router.post(
+    "/businesses/:businessId/flow-webhook-deliveries/:deliveryId/retry",
+    retryFlowWebhookDelivery
   );
 
   return router;

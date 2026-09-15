@@ -2,14 +2,20 @@ import express from "express";
 import { pinoHttp } from "pino-http";
 import { ZodError } from "zod";
 import { logger } from "./lib/logger.js";
+import { corsMiddleware } from "./lib/cors.js";
 import { assertDatabaseConnection, DATABASE_UNAVAILABLE_MESSAGE } from "./lib/prisma.js";
 import { receiveWebhook, verifyWebhook } from "./modules/channel/whatsapp.controller.js";
 import { validateMetaSignature } from "./modules/channel/meta-signature.middleware.js";
 import { createApiRouter } from "./modules/api/router.js";
+import { receiveFlowWebhook } from "./modules/api/flow-triggers.controller.js";
+import { validateFlowWebhookSignature } from "./modules/flows/flow-webhook-signature.middleware.js";
+import { WhatsAppConnectionError } from "./modules/whatsapp-connection/whatsapp-connection.errors.js";
 
 export function createApp() {
   const app = express();
+  app.set("trust proxy", 1);
 
+  app.use(corsMiddleware);
   app.use(
     express.json({
       limit: "2mb",
@@ -18,7 +24,19 @@ export function createApp() {
       }
     })
   );
-  app.use(pinoHttp({ logger }));
+  app.use(
+    pinoHttp({
+      logger,
+      redact: {
+        paths: [
+          "req.headers.authorization",
+          "req.headers.x-api-key",
+          "req.headers[\"x-api-key\"]"
+        ],
+        censor: "[Redacted]"
+      }
+    })
+  );
 
   app.get("/health", async (_req, res) => {
     try {
@@ -32,8 +50,14 @@ export function createApp() {
 
   app.get("/webhooks/whatsapp", verifyWebhook);
   app.post("/webhooks/whatsapp", validateMetaSignature, receiveWebhook);
+  app.post(
+    "/webhooks/flows/:triggerId",
+    validateFlowWebhookSignature,
+    receiveFlowWebhook
+  );
 
   app.use("/", createApiRouter());
+  app.use("/api", createApiRouter());
 
   app.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (res.headersSent) {
@@ -43,8 +67,18 @@ export function createApp() {
     if (err instanceof ZodError) {
       const first = err.errors[0];
       res.status(400).json({
+        ok: false,
         error: first?.message ?? "Validation error",
+        message: first?.message ?? "Validation error",
         path: first?.path
+      });
+      return;
+    }
+    if (err instanceof WhatsAppConnectionError) {
+      res.status(err.statusCode).json({
+        ok: false,
+        error: err.code,
+        message: err.message
       });
       return;
     }
