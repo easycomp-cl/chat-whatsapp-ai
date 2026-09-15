@@ -229,15 +229,15 @@ El error `504` al cargar inbox suele ser **timeout del BFF/Vercel** (~10 s), no 
 
 ```bash
 # Ver mensaje con transcript
-curl -s "https://api.conversai.easycomp.cl/conversations/CONV_ID" \
+curl -s "https://api-chatbotmanager.easycomp.cl/conversations/CONV_ID" \
   -H "x-internal-api-key: $KEY" | jq '.messages[] | select(.content_type=="AUDIO")'
 
 # URL del audio
-curl -s "https://api.conversai.easycomp.cl/messages/MSG_ID/media-url" \
+curl -s "https://api-chatbotmanager.easycomp.cl/messages/MSG_ID/media-url" \
   -H "x-internal-api-key: $KEY"
 
 # Enviar audio
-curl -X POST "https://api.conversai.easycomp.cl/conversations/CONV_ID/messages/media" \
+curl -X POST "https://api-chatbotmanager.easycomp.cl/conversations/CONV_ID/messages/media" \
   -H "x-internal-api-key: $KEY" \
   -F "file=@nota.ogg"
 ```

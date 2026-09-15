@@ -2,7 +2,7 @@
 
 **Repo UI:** `chat-whatsapp-ai-ui` (no editar desde este agente backend)  
 **Contrato API:** [flows-backend-mvp.md](../pending/flows-backend-mvp.md)  
-**Spec funcional:** [ConversAI_Especificacion_Modulo_Flujos.md](../pending/ConversAI_Especificacion_Modulo_Flujos.md)  
+**Spec funcional:** [easycomp-chat-bot-manager-especificacion-modulo-flujos.md](../pending/easycomp-chat-bot-manager-especificacion-modulo-flujos.md)  
 **Estado backend:** PR1–PR8 completados  
 **Canal MVP:** Solo WhatsApp
 

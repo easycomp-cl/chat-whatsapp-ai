@@ -1,7 +1,7 @@
 # Deploy producción — checklist release backend
 
 > **Fecha:** 2026-07-29  
-> **Dominio API:** `https://api.conversai.easycomp.cl`  
+> **Dominio API:** `https://api-chatbotmanager.easycomp.cl`  
 > **Mecanismo:** push a rama `staging` → GitHub Action `Deploy staging (AWS ECS)`  
 > **Cluster/servicio:** `easycomp-staging` / `chat-whatsapp-ai-combined`  
 > **Migraciones:** `CMD` de Docker ejecuta `npm run start:prod` → `prisma migrate deploy`
@@ -37,7 +37,7 @@ foreach ($line in $envFile) {
   $k, $v = $line -split '=', 2
   $map[$k.Trim()] = $v.Trim()
 }
-$BASE = "https://api.conversai.easycomp.cl"
+$BASE = "https://api-chatbotmanager.easycomp.cl"
 $KEY = $map["INTERNAL_API_KEY"]
 $BIZ = $map["TENANT_ID"]
 

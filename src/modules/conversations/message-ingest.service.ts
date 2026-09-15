@@ -146,6 +146,19 @@ export class MessageIngestService {
     });
   }
 
+  async hasBotReplyAfter(input: { conversationId: string; after: Date }) {
+    const reply = await prisma.message.findFirst({
+      where: {
+        conversationId: input.conversationId,
+        direction: MessageDirection.OUTBOUND,
+        senderType: SenderType.BOT,
+        createdAt: { gt: input.after }
+      },
+      select: { id: true }
+    });
+    return Boolean(reply);
+  }
+
   async ingestBotMessage(input: {
     tenantId: string;
     conversationId: string;

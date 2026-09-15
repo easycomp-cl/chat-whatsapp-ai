@@ -133,6 +133,11 @@ import {
   sendWhatsappTestMessage
 } from "./whatsapp-connection.controller.js";
 import { embeddedSignupCompleteLimiter } from "../whatsapp-connection/whatsapp-connection.rate-limit.js";
+import {
+  listWhatsappTemplates,
+  provisionDefaultWhatsappTemplates,
+  sendConversationTemplateMessage
+} from "./whatsapp-templates.controller.js";
 
 export function createApiRouter() {
   const router = Router();
@@ -162,6 +167,11 @@ export function createApiRouter() {
   router.get("/businesses/:id/whatsapp/connection", getWhatsappConnection);
   router.post("/whatsapp/connection/test-message", sendWhatsappTestMessage);
   router.post("/businesses/:id/whatsapp/connection/test-message", sendWhatsappTestMessage);
+  router.get("/businesses/:id/whatsapp/templates", listWhatsappTemplates);
+  router.post(
+    "/businesses/:id/whatsapp/templates/provision-defaults",
+    provisionDefaultWhatsappTemplates
+  );
   router.post("/businesses/:id/agents", createAgent);
   router.patch("/agents/:id", patchAgent);
 
@@ -171,6 +181,7 @@ export function createApiRouter() {
   router.patch("/conversations/:id/mode", patchConversationMode);
   router.post("/conversations/:id/messages", sendConversationMessage);
   router.post("/conversations/:id/messages/interactive", sendConversationInteractiveMessage);
+  router.post("/conversations/:id/messages/template", sendConversationTemplateMessage);
   router.post(
     "/conversations/:id/messages/media",
     conversationMediaUploadMiddleware,

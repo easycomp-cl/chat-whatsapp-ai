@@ -44,7 +44,7 @@ function parseArgs(): CliArgs {
 
   return {
     tenantId: get("--tenant-id") ?? process.env.TENANT_ID ?? "",
-    baseUrl: get("--base-url") ?? process.env.BOT_API_BASE_URL ?? "https://api.conversai.easycomp.cl",
+    baseUrl: get("--base-url") ?? process.env.BOT_API_BASE_URL ?? "https://api-chatbotmanager.easycomp.cl",
     simulateWamid: get("--simulate") ?? null,
     simulateStatus,
     recipientPhone: get("--recipient") ?? null,

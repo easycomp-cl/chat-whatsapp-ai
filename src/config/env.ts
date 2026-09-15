@@ -17,7 +17,7 @@ const envSchema = z.object({
   META_OAUTH_REDIRECT_URI: z.string().url().optional(),
   CORS_ALLOWED_ORIGINS: z.string().optional(),
   OPENAI_API_KEY: z.string().min(1),
-  OPENAI_MODEL: z.string().default("gpt-4o-mini"),
+  OPENAI_MODEL: z.string().default("gpt-5.6-luna"),
   OPENAI_EMBEDDING_MODEL: z.string().default("text-embedding-3-small"),
   ENCRYPTION_SECRET: z.string().min(32),
   INTERNAL_API_KEY: z.string().min(1),

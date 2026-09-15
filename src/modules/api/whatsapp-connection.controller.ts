@@ -8,6 +8,7 @@ import {
   whatsappTestMessageSchema
 } from "../whatsapp-connection/whatsapp-connection.schema.js";
 import { whatsappConnectionService } from "../whatsapp-connection/whatsapp-connection.service.js";
+import { enqueueProvisionStandardTemplatesSafe } from "../queue/whatsapp-templates.queue.js";
 
 function resolveTenantId(req: Request, bodyTenantId?: string): string | null {
   const fromParams =
@@ -62,6 +63,7 @@ export async function completeEmbeddedSignup(req: Request, res: Response) {
 
   try {
     const result = await whatsappConnectionService.completeEmbeddedSignup(tenantId, body);
+    void enqueueProvisionStandardTemplatesSafe(tenantId);
     res.status(200).json(result);
   } catch (error) {
     if (sendConnectionError(res, error)) return;

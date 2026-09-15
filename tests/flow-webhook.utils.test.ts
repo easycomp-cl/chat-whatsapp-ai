@@ -5,7 +5,7 @@ import {
   attachEncryptedWebhookSecret,
   buildFlowStartIdempotencyKey,
   getWebhookSecretFromTrigger,
-  verifyConversAiSignature
+  verifyChatBotManagerSignature
 } from "../src/modules/flows/flow-webhook.utils.js";
 
 describe("flow-webhook.utils", () => {
@@ -16,14 +16,14 @@ describe("flow-webhook.utils", () => {
     expect(getWebhookSecretFromTrigger({})).toBeNull();
   });
 
-  it("verifies ConversAI HMAC signature", () => {
+  it("verifies Chat Bot Manager HMAC signature", () => {
     const secret = "test-secret";
     const body = Buffer.from(JSON.stringify({ customer_phone: "+56912345678" }));
     const signature = `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
 
-    expect(verifyConversAiSignature(body, signature, secret)).toBe(true);
-    expect(verifyConversAiSignature(body, "sha256=deadbeef", secret)).toBe(false);
-    expect(verifyConversAiSignature(body, undefined, secret)).toBe(false);
+    expect(verifyChatBotManagerSignature(body, signature, secret)).toBe(true);
+    expect(verifyChatBotManagerSignature(body, "sha256=deadbeef", secret)).toBe(false);
+    expect(verifyChatBotManagerSignature(body, undefined, secret)).toBe(false);
   });
 
   it("builds stable idempotency keys", () => {

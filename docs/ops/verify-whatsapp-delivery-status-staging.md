@@ -1,7 +1,7 @@
 # Verificación staging/prod — ticks WhatsApp (SENT → DELIVERED → READ)
 
-> **API:** `https://api.conversai.easycomp.cl`  
-> **Webhook Meta:** `https://api.conversai.easycomp.cl/webhooks/whatsapp`  
+> **API:** `https://api-chatbotmanager.easycomp.cl`  
+> **Webhook Meta:** `https://api-chatbotmanager.easycomp.cl/webhooks/whatsapp`  
 > **Script automático:** `scripts/verify-whatsapp-delivery-status.ts`
 
 ---
@@ -139,7 +139,7 @@ El webhook **solo encola**; el worker aplica el `UPDATE`.
 ## 4. Meta Developers
 
 1. [developers.facebook.com](https://developers.facebook.com) → tu app → **WhatsApp** → **Configuration**.
-2. **Callback URL:** `https://api.conversai.easycomp.cl/webhooks/whatsapp`
+2. **Callback URL:** `https://api-chatbotmanager.easycomp.cl/webhooks/whatsapp`
 3. **Verify token:** igual que `WHATSAPP_VERIFY_TOKEN` en Secrets Manager.
 4. **Webhook fields:** suscrito a **messages** (incluye statuses).
 5. WABA → **suscrito a la app** (`subscribed_apps`).

@@ -21,7 +21,7 @@ param(
   [string]$PhoneNumber = "+56946867544",
   [string]$AccessToken = "",
   [string]$BusinessId = "",
-  [string]$ApiBase = "https://api.conversai.easycomp.cl",
+  [string]$ApiBase = "https://api-chatbotmanager.easycomp.cl",
   [string]$EnvFile = ".env.production"
 )
 

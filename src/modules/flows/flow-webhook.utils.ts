@@ -35,7 +35,7 @@ export function getWebhookSecretFromTrigger(configurationJson: unknown): string 
   }
 }
 
-export function verifyConversAiSignature(
+export function verifyChatBotManagerSignature(
   rawBody: Buffer,
   signatureHeader: string | undefined,
   secret: string

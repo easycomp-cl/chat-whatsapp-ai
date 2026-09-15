@@ -236,7 +236,7 @@ Casos que el backend ya maneja sin config extra:
 1. **API directa**
    ```bash
    curl -s -H "x-api-key: $BOT_API_SECRET" \
-     https://api.conversai.easycomp.cl/businesses/{id}/bot-personality
+     https://api-chatbotmanager.easycomp.cl/businesses/{id}/bot-personality
    ```
 
 2. **Guardar variante de gracias**
@@ -244,7 +244,7 @@ Casos que el backend ya maneja sin config extra:
    curl -s -X PATCH -H "Content-Type: application/json" \
      -H "x-api-key: $BOT_API_SECRET" \
      -d '{"conversational_responses":[{"trigger":"thanks","enabled":true,"selection":"random","variants":[{"text":"¡De nada {nombre}!"}]}]}' \
-     https://api.conversai.easycomp.cl/businesses/{id}/bot-personality
+     https://api-chatbotmanager.easycomp.cl/businesses/{id}/bot-personality
    ```
 
 3. **WhatsApp E2E**

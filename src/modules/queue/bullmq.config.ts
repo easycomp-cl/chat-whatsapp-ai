@@ -14,11 +14,13 @@ export const bullmqConnection = {
  */
 export const bullmqWorkerOptions: Pick<
   WorkerOptions,
-  "drainDelay" | "stalledInterval" | "maxStalledCount"
+  "drainDelay" | "stalledInterval" | "maxStalledCount" | "lockDuration"
 > = {
   drainDelay: 10_000,
   stalledInterval: 300_000,
-  maxStalledCount: 1
+  maxStalledCount: 1,
+  /** Audio inbound: download + Whisper + OpenAI suele superar los 30s default. */
+  lockDuration: 180_000
 };
 
 export function bullmqQueueOptions(defaultJobOptions: DefaultJobOptions): QueueOptions {

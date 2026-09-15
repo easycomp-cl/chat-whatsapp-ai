@@ -87,12 +87,25 @@ export type NormalizedMessageStatus = {
   rawPayload: unknown;
 };
 
+export type NormalizedTemplateStatusUpdate = {
+  kind: "template_status";
+  wabaId: string;
+  name: string;
+  language: string;
+  event: string;
+  metaTemplateId?: string;
+  reason?: string;
+  timestamp: Date;
+  rawPayload: unknown;
+};
+
 export type NormalizedWebhookEvent =
   | NormalizedIncomingMessage
   | NormalizedIncomingReaction
   | NormalizedIncomingEdit
   | NormalizedIncomingRevoke
-  | NormalizedMessageStatus;
+  | NormalizedMessageStatus
+  | NormalizedTemplateStatusUpdate;
 
 export type OutboundMessage = {
   to: string;

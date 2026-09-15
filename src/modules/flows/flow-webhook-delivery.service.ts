@@ -4,7 +4,7 @@ import { logger } from "../../lib/logger.js";
 import { prisma } from "../../lib/prisma.js";
 import { FlowHttpError } from "./flows.errors.js";
 import {
-  buildConversAiOutboundHeaders,
+  buildChatBotManagerOutboundHeaders,
   truncateResponseBody
 } from "./flow-webhook-outbound.utils.js";
 import { flowWebhookIntegrationService } from "./flow-webhook-integration.service.js";
@@ -90,7 +90,7 @@ export class FlowWebhookDeliveryService {
     const secret = flowWebhookIntegrationService.resolveSigningSecret(integration.integration);
     const attemptNumber = delivery.attemptCount + 1;
     const body = JSON.stringify(delivery.payloadJson);
-    const headers = buildConversAiOutboundHeaders({
+    const headers = buildChatBotManagerOutboundHeaders({
       deliveryId: delivery.id,
       eventType: delivery.eventType,
       secret,

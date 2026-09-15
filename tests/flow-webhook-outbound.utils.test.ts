@@ -1,10 +1,11 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
-  buildConversAiOutboundHeaders,
-  buildConversAiSignedPayload,
+  buildChatBotManagerOutboundHeaders,
+  buildChatBotManagerSignedPayload,
+  CHAT_BOT_MANAGER_HEADER_PREFIX,
   truncateResponseBody,
-  verifyConversAiOutboundSignature
+  verifyChatBotManagerOutboundSignature
 } from "../src/modules/flows/flow-webhook-outbound.utils.js";
 
 describe("flow-webhook-outbound.utils", () => {
@@ -12,7 +13,7 @@ describe("flow-webhook-outbound.utils", () => {
     const body = JSON.stringify({ eventType: "quote.confirmed" });
     const secret = "super-secret";
     const timestamp = 1_700_000_000;
-    const headers = buildConversAiOutboundHeaders({
+    const headers = buildChatBotManagerOutboundHeaders({
       deliveryId: "del_123",
       eventType: "quote.confirmed",
       secret,
@@ -20,13 +21,13 @@ describe("flow-webhook-outbound.utils", () => {
       timestamp
     });
 
-    const signedPayload = buildConversAiSignedPayload(timestamp, body);
+    const signedPayload = buildChatBotManagerSignedPayload(timestamp, body);
     const expected = `sha256=${createHmac("sha256", secret).update(signedPayload).digest("hex")}`;
 
-    expect(headers["X-ConversAI-Event"]).toBe("quote.confirmed");
-    expect(headers["X-ConversAI-Delivery-Id"]).toBe("del_123");
-    expect(headers["X-ConversAI-Timestamp"]).toBe(String(timestamp));
-    expect(headers["X-ConversAI-Signature"]).toBe(expected);
+    expect(headers[`${CHAT_BOT_MANAGER_HEADER_PREFIX}-Event`]).toBe("quote.confirmed");
+    expect(headers[`${CHAT_BOT_MANAGER_HEADER_PREFIX}-Delivery-Id`]).toBe("del_123");
+    expect(headers[`${CHAT_BOT_MANAGER_HEADER_PREFIX}-Timestamp`]).toBe(String(timestamp));
+    expect(headers[`${CHAT_BOT_MANAGER_HEADER_PREFIX}-Signature`]).toBe(expected);
   });
 
   it("truncates long response bodies", () => {
@@ -38,7 +39,7 @@ describe("flow-webhook-outbound.utils", () => {
     const body = JSON.stringify({ ok: true });
     const secret = "secret-key";
     const timestamp = 1_700_000_000;
-    const headers = buildConversAiOutboundHeaders({
+    const headers = buildChatBotManagerOutboundHeaders({
       deliveryId: "del_1",
       eventType: "quote.confirmed",
       secret,
@@ -47,10 +48,10 @@ describe("flow-webhook-outbound.utils", () => {
     });
 
     expect(
-      verifyConversAiOutboundSignature({
+      verifyChatBotManagerOutboundSignature({
         rawBody: body,
-        signatureHeader: headers["X-ConversAI-Signature"],
-        timestampHeader: headers["X-ConversAI-Timestamp"],
+        signatureHeader: headers[`${CHAT_BOT_MANAGER_HEADER_PREFIX}-Signature`],
+        timestampHeader: headers[`${CHAT_BOT_MANAGER_HEADER_PREFIX}-Timestamp`],
         secret,
         nowSeconds: timestamp
       })

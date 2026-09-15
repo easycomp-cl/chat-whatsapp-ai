@@ -27,7 +27,7 @@
 - [ ] [Meta Business Portfolio](https://business.facebook.com/) (negocio verificado recomendado para producción)
 - [ ] App de tipo **Business** con producto **WhatsApp** agregado
 - [ ] Un **WABA** (WhatsApp Business Account) con al menos un número conectado
-- [ ] Webhook configurado en la app apuntando a `https://api.conversai.easycomp.cl/webhooks/whatsapp`
+- [ ] Webhook configurado en la app apuntando a `https://api-chatbotmanager.easycomp.cl/webhooks/whatsapp`
 - [ ] Campo `messages` suscrito en el webhook
 
 ---
@@ -41,7 +41,7 @@
 
 ### 2. Crear usuario del sistema
 
-1. **Agregar** → nombre sugerido: `conversai-api` o `easycomp-bot`.
+1. **Agregar** → nombre sugerido: `EasyComp Chat Bot Manager-api` o `easycomp-bot`.
 2. Rol: **Administrador** del portfolio (o el mínimo que permita gestionar la app y el WABA).
 
 ### 3. Asignar activos al System User
@@ -50,7 +50,7 @@ En el System User → **Asignar activos**:
 
 | Activo | Permiso |
 |--------|---------|
-| Tu **app de Meta** (ConversAI) | Control total o al menos desarrollo |
+| Tu **app de Meta** (EasyComp Chat Bot Manager) | Control total o al menos desarrollo |
 | Tu **WABA** | Control total |
 | **Número(s)** del WABA | Control total |
 
@@ -126,7 +126,7 @@ Cuando el token es válido:
 Equivalente API:
 
 ```http
-POST https://api.conversai.easycomp.cl/businesses/{tenantId}/whatsapp-accounts
+POST https://api-chatbotmanager.easycomp.cl/businesses/{tenantId}/whatsapp-accounts
 X-API-Key: <INTERNAL_API_KEY>
 Content-Type: application/json
 

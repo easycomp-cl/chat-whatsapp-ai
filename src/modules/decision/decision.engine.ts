@@ -1,5 +1,6 @@
 import { ConversationMode } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
+import { isBotRuntimeBlocked } from "../onboarding/onboarding-config.js";
 
 export type DecisionResult =
   | { canRespond: false; reason: "bot_disabled" | "human_mode" }
@@ -13,7 +14,7 @@ export class DecisionEngine {
     mode: ConversationMode;
     botResumeAt: Date | null;
   }): Promise<DecisionResult> {
-    if (!input.botGlobalEnabled) {
+    if (isBotRuntimeBlocked(input.botGlobalEnabled)) {
       return { canRespond: false, reason: "bot_disabled" };
     }
 

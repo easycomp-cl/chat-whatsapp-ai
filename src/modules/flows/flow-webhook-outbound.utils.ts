@@ -1,10 +1,13 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-export function buildConversAiSignedPayload(timestamp: number, body: string): string {
+/** HTTP header prefix for outbound flow webhook deliveries (EasyComp Chat Bot Manager). */
+export const CHAT_BOT_MANAGER_HEADER_PREFIX = "X-ChatBotManager";
+
+export function buildChatBotManagerSignedPayload(timestamp: number, body: string): string {
   return `${timestamp}.${body}`;
 }
 
-export function buildConversAiOutboundHeaders(input: {
+export function buildChatBotManagerOutboundHeaders(input: {
   deliveryId: string;
   eventType: string;
   secret: string;
@@ -12,14 +15,14 @@ export function buildConversAiOutboundHeaders(input: {
   timestamp?: number;
 }): Record<string, string> {
   const timestamp = input.timestamp ?? Math.floor(Date.now() / 1000);
-  const signedPayload = buildConversAiSignedPayload(timestamp, input.body);
+  const signedPayload = buildChatBotManagerSignedPayload(timestamp, input.body);
 
   return {
     "Content-Type": "application/json",
-    "X-ConversAI-Event": input.eventType,
-    "X-ConversAI-Delivery-Id": input.deliveryId,
-    "X-ConversAI-Timestamp": String(timestamp),
-    "X-ConversAI-Signature": `sha256=${createHmac("sha256", input.secret)
+    [`${CHAT_BOT_MANAGER_HEADER_PREFIX}-Event`]: input.eventType,
+    [`${CHAT_BOT_MANAGER_HEADER_PREFIX}-Delivery-Id`]: input.deliveryId,
+    [`${CHAT_BOT_MANAGER_HEADER_PREFIX}-Timestamp`]: String(timestamp),
+    [`${CHAT_BOT_MANAGER_HEADER_PREFIX}-Signature`]: `sha256=${createHmac("sha256", input.secret)
       .update(signedPayload)
       .digest("hex")}`
   };
@@ -32,7 +35,7 @@ export function truncateResponseBody(body: string, maxLength = 2000): string {
   return `${body.slice(0, maxLength)}…`;
 }
 
-export function verifyConversAiOutboundSignature(input: {
+export function verifyChatBotManagerOutboundSignature(input: {
   rawBody: string;
   signatureHeader: string | undefined;
   timestampHeader: string | undefined;
@@ -55,7 +58,7 @@ export function verifyConversAiOutboundSignature(input: {
     return false;
   }
 
-  const signedPayload = buildConversAiSignedPayload(timestamp, input.rawBody);
+  const signedPayload = buildChatBotManagerSignedPayload(timestamp, input.rawBody);
   const expected = `sha256=${createHmac("sha256", input.secret).update(signedPayload).digest("hex")}`;
 
   try {

@@ -11,6 +11,7 @@ import { paramId } from "../../utils/params.js";
 import { requireTenantFaq } from "../../utils/tenant-resource.js";
 import { setNoStore, setPrivateHttpCache } from "../../lib/http-cache.js";
 import { normalizeTeamMemberRole, serializeTeamMemberRole } from "../../utils/team-member-role.js";
+import { enqueueProvisionStandardTemplatesSafe } from "../queue/whatsapp-templates.queue.js";
 
 const createBusinessSchema = z.object({
   name: z.string().min(1),
@@ -234,6 +235,9 @@ export async function createWhatsappAccount(req: Request, res: Response) {
       coexistenceEnabled: body.coexistence_enabled ?? false
     });
     const { accessTokenEncrypted: _omitted, ...safeChannel } = channel;
+    if (channel.wabaId) {
+      void enqueueProvisionStandardTemplatesSafe(id);
+    }
     res.status(201).json(safeChannel);
   } catch (error) {
     if (error instanceof WhatsAppConnectionError) {

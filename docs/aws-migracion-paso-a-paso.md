@@ -6,16 +6,16 @@ Guía detallada para desplegar el backend `chat-whatsapp-ai` en AWS y conectarlo
 
 | Qué | URL |
 |-----|-----|
-| UI (Vercel) | `https://conversai.easycomp.cl` |
-| API + webhook Meta (AWS) | `https://api.conversai.easycomp.cl` |
-| Webhook WhatsApp | `https://api.conversai.easycomp.cl/webhooks/whatsapp` |
+| UI (Vercel) | `https://chatbotmanager.easycomp.cl` |
+| API + webhook Meta (AWS) | `https://api-chatbotmanager.easycomp.cl` |
+| Webhook WhatsApp | `https://api-chatbotmanager.easycomp.cl/webhooks/whatsapp` |
 
 **Arquitectura final:**
 
 ```txt
 Usuario WhatsApp
   → Meta Cloud API
-  → api.conversai.easycomp.cl (AWS ALB → ECS API)
+  → api-chatbotmanager.easycomp.cl (AWS ALB → ECS API)
   → Redis (Upstash) cola BullMQ
   → ECS Workers (mismo contenedor, otro comando)
   → Supabase Postgres (Prisma)
@@ -23,9 +23,9 @@ Usuario WhatsApp
   → respuesta WhatsApp
 
 Operador en navegador
-  → conversai.easycomp.cl (Vercel UI)
+  → chatbotmanager.easycomp.cl (Vercel UI)
   → Supabase (auth + realtime)
-  → api.conversai.easycomp.cl (API interna con X-API-Key)
+  → api-chatbotmanager.easycomp.cl (API interna con X-API-Key)
 ```
 
 ---
@@ -352,7 +352,7 @@ Meta exige HTTPS en el webhook.
 Consola → **Certificate Manager (ACM)** → región **sa-east-1** → **Request certificate**:
 
 - Tipo: **Public certificate**
-- Dominio: `api.conversai.easycomp.cl`
+- Dominio: `api-chatbotmanager.easycomp.cl`
 - Validación: **DNS validation**
 
 ### 7.2 Validar en tu hosting DNS
@@ -360,7 +360,7 @@ Consola → **Certificate Manager (ACM)** → región **sa-east-1** → **Reques
 ACM te muestra un registro CNAME, algo como:
 
 ```txt
-_nombre-random.api.conversai.easycomp.cl  →  _nombre-random.acm-validations.aws.
+_nombre-random.api-chatbotmanager.easycomp.cl  →  _nombre-random.acm-validations.aws.
 ```
 
 En el panel DNS de `easycomp.cl` (tu hosting), agrega ese CNAME.
@@ -409,7 +409,7 @@ Nombre sugerido: `easycomp-api-tg`
 
 ### 8.3 Listeners
 
-- **HTTPS :443** → forward al target group → certificado ACM de `api.conversai.easycomp.cl`
+- **HTTPS :443** → forward al target group → certificado ACM de `api-chatbotmanager.easycomp.cl`
 - **HTTP :80** → redirect a HTTPS (opcional pero recomendado)
 
 Anota el DNS del ALB:
@@ -509,22 +509,22 @@ Espera a que el servicio quede **Running** y el target group muestre **healthy**
 
 ---
 
-## Paso 10 — DNS: apuntar `api.conversai.easycomp.cl` al ALB
+## Paso 10 — DNS: apuntar `api-chatbotmanager.easycomp.cl` al ALB
 
 En el panel DNS de tu hosting (`easycomp.cl`):
 
 | Tipo | Nombre/Host | Valor |
 |------|-------------|-------|
-| CNAME | `api.conversai` | `easycomp-api-staging-xxxxxxxx.sa-east-1.elb.amazonaws.com` |
+| CNAME | `api-chatbotmanager` | `easycomp-api-staging-xxxxxxxx.sa-east-1.elb.amazonaws.com` |
 
-> Algunos hostings piden el host como `api.conversai` y otros como `api.conversai.easycomp.cl`. Usa el formato que tu panel indique.
+> Algunos hostings piden el host como `api-chatbotmanager` y otros como `api-chatbotmanager.easycomp.cl`. Usa el formato que tu panel indique.
 
 Espera propagación DNS (5 min – 2 h).
 
 ### 10.1 Probar health check
 
 ```powershell
-curl https://api.conversai.easycomp.cl/health
+curl https://api-chatbotmanager.easycomp.cl/health
 ```
 
 Respuesta esperada:
@@ -555,24 +555,24 @@ En el proyecto UI en Vercel → **Settings** → **Environment Variables**:
 NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
-BOT_API_BASE_URL=https://api.conversai.easycomp.cl
+BOT_API_BASE_URL=https://api-chatbotmanager.easycomp.cl
 BOT_API_SECRET=<mismo valor que INTERNAL_API_KEY>
 ```
 
 ### Dominio UI
 
-Vercel → **Domains** → agregar `conversai.easycomp.cl`.
+Vercel → **Domains** → agregar `chatbotmanager.easycomp.cl`.
 
 Vercel te dará un registro DNS. En tu hosting:
 
 | Tipo | Host | Valor (ejemplo) |
 |------|------|-----------------|
-| CNAME | `conversai` | `cname.vercel-dns.com` |
+| CNAME | `EasyComp Chat Bot Manager` | `cname.vercel-dns.com` |
 
 Redeploy la UI después de cambiar variables.
 
 - [ ] Variables en Vercel configuradas
-- [ ] Dominio `conversai.easycomp.cl` activo
+- [ ] Dominio `chatbotmanager.easycomp.cl` activo
 
 ---
 
@@ -582,7 +582,7 @@ Redeploy la UI después de cambiar variables.
 2. **Callback URL:**
 
    ```txt
-   https://api.conversai.easycomp.cl/webhooks/whatsapp
+   https://api-chatbotmanager.easycomp.cl/webhooks/whatsapp
    ```
 
 3. **Verify token:** el mismo que `WHATSAPP_VERIFY_TOKEN`.
@@ -613,7 +613,7 @@ $headers = @{
 
 # Crear negocio
 Invoke-RestMethod -Method POST `
-  -Uri "https://api.conversai.easycomp.cl/businesses" `
+  -Uri "https://api-chatbotmanager.easycomp.cl/businesses" `
   -Headers $headers `
   -Body '{"name":"EasyComp Piloto","slug":"easycomp-piloto","botName":"Asistente","botTone":"profesional y cercano"}'
 ```
@@ -622,7 +622,7 @@ Guarda el `id` del negocio y luego vincula WhatsApp:
 
 ```powershell
 Invoke-RestMethod -Method POST `
-  -Uri "https://api.conversai.easycomp.cl/businesses/<BUSINESS_ID>/whatsapp-accounts" `
+  -Uri "https://api-chatbotmanager.easycomp.cl/businesses/<BUSINESS_ID>/whatsapp-accounts" `
   -Headers $headers `
   -Body '{"phone_number_id":"<PHONE_NUMBER_ID>","phone_number":"+56...","access_token":"<TOKEN>"}'
 ```
@@ -641,14 +641,14 @@ Marca cada prueba:
 ### API
 
 ```powershell
-curl https://api.conversai.easycomp.cl/health
+curl https://api-chatbotmanager.easycomp.cl/health
 ```
 
 - [ ] `ok: true`, `db: up`
 
 ### UI
 
-- [ ] Login en `https://conversai.easycomp.cl`
+- [ ] Login en `https://chatbotmanager.easycomp.cl`
 - [ ] Dashboard carga sin error de `BOT_API_BASE_URL`
 - [ ] No aparece `Unauthorized`
 
@@ -700,7 +700,7 @@ No copies staging a prod. Duplica infraestructura:
 | Redis Upstash | DB staging | DB prod |
 | Secrets Manager | `chat-whatsapp-ai/staging` | `chat-whatsapp-ai/production` |
 | ECS cluster | `easycomp-staging` | `easycomp-prod` |
-| Dominio API | `api.conversai.easycomp.cl` | `api.conversai.easycomp.cl` o subdominio prod |
+| Dominio API | `api-chatbotmanager.easycomp.cl` | `api-chatbotmanager.easycomp.cl` o subdominio prod |
 | Meta | app de prueba | app / número prod |
 | Vercel | preview/staging env | production env |
 
@@ -730,9 +730,9 @@ Eso se puede agregar después de que el piloto manual funcione.
  7. Certificado ACM + validación DNS
  8. ALB + target group
  9. Task definition + servicio ECS
-10. DNS api.conversai → ALB
+10. DNS api-chatbotmanager → ALB
 11. curl /health
-12. Vercel BOT_API_* + dominio conversai
+12. Vercel BOT_API_* + dominio EasyComp Chat Bot Manager
 13. Meta webhook verify
 14. Crear negocio + WhatsApp
 15. Mensaje de prueba

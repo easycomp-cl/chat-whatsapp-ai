@@ -37,7 +37,8 @@ export async function receiveFlowWebhook(req: Request, res: Response) {
   const triggerId = paramId(req, "triggerId");
 
   try {
-    const idempotencyHeader = req.headers["x-conversai-idempotency-key"];
+    const idempotencyHeader =
+      req.headers["x-chatbotmanager-idempotency-key"] ?? req.headers["X-ChatBotManager-idempotency-key"];
     const result = await flowTriggerStartService.startByWebhookTrigger({
       triggerId,
       body: req.body ?? {},

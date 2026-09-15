@@ -5,6 +5,10 @@ import { startChatImportAnalysisWorker, stopChatImportAnalysisWorker } from "./m
 import { startKnowledgeIndexWorker, stopKnowledgeIndexWorker } from "./modules/queue/knowledge-index.worker.js";
 import { startMessageWorker, stopMessageWorker } from "./modules/queue/message.worker.js";
 import { startFlowWebhookDeliveryWorker, stopFlowWebhookDeliveryWorker } from "./modules/queue/flow-webhook-delivery.worker.js";
+import {
+  startWhatsappTemplatesWorker,
+  stopWhatsappTemplatesWorker
+} from "./modules/queue/whatsapp-templates.worker.js";
 
 async function bootstrap() {
   try {
@@ -19,6 +23,7 @@ async function bootstrap() {
   startKnowledgeIndexWorker();
   startChatImportAnalysisWorker();
   startFlowWebhookDeliveryWorker();
+  startWhatsappTemplatesWorker();
 
   logger.info("EasyComp Bot IA workers listening");
 
@@ -28,6 +33,7 @@ async function bootstrap() {
     await stopKnowledgeIndexWorker();
     await stopChatImportAnalysisWorker();
     await stopFlowWebhookDeliveryWorker();
+    await stopWhatsappTemplatesWorker();
     await disconnectRedis();
     await prisma.$disconnect();
     process.exit(0);

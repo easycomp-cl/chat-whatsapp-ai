@@ -47,7 +47,7 @@ Write-Host "  Encender: .\scripts\aws-staging-start.ps1"
 if ($svc.running -gt 0) {
   Write-Host ""
   try {
-    $health = curl.exe -s -m 10 https://api.conversai.easycomp.cl/health
+    $health = curl.exe -s -m 10 https://api-chatbotmanager.easycomp.cl/health
     Write-Host "Health: $health"
   } catch {
     Write-Host "Health: no respondio (aun arrancando?)"

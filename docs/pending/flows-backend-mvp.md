@@ -2,7 +2,7 @@
 
 **Estado:** PR1–PR8 completados (MVP backend listo para consumo UI)  
 **Spec UI:** [flows-ui-mvp.md](../to-front/flows-ui-mvp.md)
-**Spec origen:** [ConversAI_Especificacion_Modulo_Flujos.md](./ConversAI_Especificacion_Modulo_Flujos.md)  
+**Spec origen:** [easycomp-chat-bot-manager-especificacion-modulo-flujos.md](./easycomp-chat-bot-manager-especificacion-modulo-flujos.md)  
 **Canal MVP:** Solo WhatsApp  
 **Audiencia:** Equipo backend + equipo UI (front en repo hermano; ver [flows-ui-mvp.md](../to-front/flows-ui-mvp.md))
 
@@ -162,8 +162,8 @@ POST   /webhooks/flows/:triggerId
 ```
 
 `start-by-api`: API key interna (`x-api-key`) + body con `conversation_id` o `customer_phone`.  
-`webhooks/flows/:triggerId`: firma HMAC `X-ConversAI-Signature` (sha256 del body con secreto del trigger).  
-Idempotencia opcional: `idempotency_key` en body o header `X-ConversAI-Idempotency-Key`.
+`webhooks/flows/:triggerId`: firma HMAC `X-ChatBotManager-Signature` (sha256 del body con secreto del trigger).  
+Idempotencia opcional: `idempotency_key` en body o header `X-ChatBotManager-Idempotency-Key`.
 
 ### Webhooks salientes (PR8)
 
@@ -180,10 +180,10 @@ El nodo `emit_event` encola entrega POST firmada cuando existe integración `FLO
 Headers salientes:
 
 ```http
-X-ConversAI-Event: quote.confirmed
-X-ConversAI-Delivery-Id: <deliveryId>
-X-ConversAI-Timestamp: <unix-seconds>
-X-ConversAI-Signature: sha256=<hmac(timestamp + "." + body)>
+X-ChatBotManager-Event: quote.confirmed
+X-ChatBotManager-Delivery-Id: <deliveryId>
+X-ChatBotManager-Timestamp: <unix-seconds>
+X-ChatBotManager-Signature: sha256=<hmac(timestamp + "." + body)>
 ```
 
 Reintentos: BullMQ cola `flow-webhook-delivery`, backoff exponencial (5 intentos por defecto, `FLOW_WEBHOOK_MAX_ATTEMPTS`).
@@ -312,7 +312,7 @@ Variables de entorno backend (PR6):
 |------|--------|
 | `src/modules/flows/flow-trigger-start.service.ts` | Inicio por API/webhook + conversación |
 | `src/modules/flows/flow-webhook.utils.ts` | HMAC + secreto encriptado en trigger |
-| `src/modules/flows/flow-webhook-signature.middleware.ts` | Valida `X-ConversAI-Signature` |
+| `src/modules/flows/flow-webhook-signature.middleware.ts` | Valida `X-ChatBotManager-Signature` |
 | `src/modules/api/flow-triggers.controller.ts` | Handlers HTTP |
 | `src/app.ts` | Ruta pública `POST /webhooks/flows/:triggerId` |
 | `src/modules/flows/flow-engine.service.ts` | `idempotencyKey` + `initialVariables` en `start()` |

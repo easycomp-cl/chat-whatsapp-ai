@@ -10,6 +10,18 @@ export type InboundAudioResult = {
   mediaStored: boolean;
 };
 
+export function resolveStoredInboundPipelineText(message: {
+  audioTranscript?: string | null;
+  contentText?: string | null;
+}): string {
+  const transcript = message.audioTranscript?.trim();
+  if (transcript) {
+    return transcript;
+  }
+
+  return message.contentText?.trim() ?? "";
+}
+
 export class InboundAudioService {
   async process(input: {
     tenantId: string;

@@ -38,7 +38,11 @@ export async function enqueueWebhookEvent(event: NormalizedWebhookEvent) {
       ? sanitizeQueueJobId(
           `status-${event.externalMessageId}-${event.status}-${event.timestamp.getTime()}`
         )
-      : sanitizeQueueJobId(event.externalMessageId);
+      : event.kind === "template_status"
+        ? sanitizeQueueJobId(
+            `tpl-${event.wabaId}-${event.name}-${event.language}-${event.event}-${event.timestamp.getTime()}`
+          )
+        : sanitizeQueueJobId(event.externalMessageId);
 
   await queue.add("process", { event }, { jobId });
 }

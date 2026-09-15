@@ -4,7 +4,7 @@ import { env } from "../../config/env.js";
 import { logger } from "../../lib/logger.js";
 import {
   getWebhookSecretFromTrigger,
-  verifyConversAiSignature
+  verifyChatBotManagerSignature
 } from "./flow-webhook.utils.js";
 
 export type FlowWebhookRequest = Request & {
@@ -60,8 +60,15 @@ export async function validateFlowWebhookSignature(
       return;
     }
 
-    const signature = req.headers["x-conversai-signature"];
-    if (!verifyConversAiSignature(rawBody, typeof signature === "string" ? signature : undefined, secret)) {
+    const signature =
+      req.headers["x-chatbotmanager-signature"] ?? req.headers["X-ChatBotManager-signature"];
+    if (
+      !verifyChatBotManagerSignature(
+        rawBody,
+        typeof signature === "string" ? signature : undefined,
+        secret
+      )
+    ) {
       logger.warn({ triggerId }, "Invalid flow webhook signature");
       res.status(401).json({ error: "Firma inválida" });
       return;

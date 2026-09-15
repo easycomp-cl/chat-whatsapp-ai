@@ -7,6 +7,7 @@ import {
 import { ReactionRouterService } from "../router/reaction-router.service.js";
 import { MessageUpdateRouterService } from "../router/message-update-router.service.js";
 import { DeliveryStatusRouterService } from "../router/delivery-status-router.service.js";
+import { whatsappTemplatesService } from "../whatsapp-templates/whatsapp-templates.service.js";
 import { bullmqConnection, bullmqWorkerOptions } from "./bullmq.config.js";
 import { MESSAGE_QUEUE_NAME, type MessageJobData } from "./message.queue.js";
 
@@ -29,6 +30,17 @@ export function startMessageWorker() {
         const { event } = job.data;
         if (event.kind === "status") {
           await deliveryStatusRouter.route(event);
+          return;
+        }
+        if (event.kind === "template_status") {
+          await whatsappTemplatesService.applyStatusUpdate({
+            wabaId: event.wabaId,
+            name: event.name,
+            language: event.language,
+            event: event.event,
+            ...(event.metaTemplateId ? { metaTemplateId: event.metaTemplateId } : {}),
+            ...(event.reason ? { reason: event.reason } : {})
+          });
           return;
         }
         if (event.kind === "reaction") {

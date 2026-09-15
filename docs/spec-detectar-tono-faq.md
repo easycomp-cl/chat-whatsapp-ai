@@ -1,8 +1,8 @@
-# ConversAI — Backend Spec: Análisis de Tono y Preguntas Frecuentes desde Chats
+# EasyComp Chat Bot Manager — Backend Spec: Análisis de Tono y Preguntas Frecuentes desde Chats
 
 ## 1. Objetivo del módulo
 
-Agregar al backend existente de ConversAI un módulo que permita:
+Agregar al backend existente de EasyComp Chat Bot Manager un módulo que permita:
 
 - Subir chats exportados desde WhatsApp.
 - Leer y parsear conversaciones históricas.
@@ -950,5 +950,5 @@ src/modules/chat-analysis/
 ## 20. Descripción corta para Codex
 
 ```txt
-Agregar módulo backend llamado chat-analysis para ConversAI. Este módulo debe permitir subir chats exportados de WhatsApp en formato .txt o .zip, parsear mensajes, identificar cliente vs negocio, anonimizar datos sensibles, analizar con IA el tono de respuesta del negocio, detectar preguntas frecuentes repetidas, generar respuestas sugeridas imitando el tono del negocio y permitir que el usuario apruebe, edite o rechace esas sugerencias. Las FAQs aprobadas deben integrarse con la tabla FAQ existente y el tono aprobado debe actualizar el perfil del bot existente.
+Agregar módulo backend llamado chat-analysis para EasyComp Chat Bot Manager. Este módulo debe permitir subir chats exportados de WhatsApp en formato .txt o .zip, parsear mensajes, identificar cliente vs negocio, anonimizar datos sensibles, analizar con IA el tono de respuesta del negocio, detectar preguntas frecuentes repetidas, generar respuestas sugeridas imitando el tono del negocio y permitir que el usuario apruebe, edite o rechace esas sugerencias. Las FAQs aprobadas deben integrarse con la tabla FAQ existente y el tono aprobado debe actualizar el perfil del bot existente.
 ```

@@ -81,6 +81,16 @@ enum ContentType {
   AUDIO
   DOCUMENT
   INTERACTIVE
+  TEMPLATE
+}
+
+enum WhatsappTemplateStatus {
+  NOT_CREATED
+  PENDING
+  APPROVED
+  REJECTED
+  PAUSED
+  DISABLED
 }
 
 enum KnowledgeSourceType {
@@ -215,7 +225,7 @@ model Tenant {
   businessType        String           @default("general")
   status              TenantStatus     @default(ACTIVE)
   botGlobalEnabled    Boolean          @default(true)
-  defaultAiModel      String           @default("gpt-4o-mini")
+  defaultAiModel      String           @default("gpt-5.6-luna")
   confidenceThreshold Float            @default(0.70)
   timezone            String           @default("America/Santiago")
   metadataJson        Json?
@@ -250,6 +260,7 @@ model Tenant {
   flowFiles           FlowFile[]
   flowWebhookDeliveries FlowWebhookDelivery[]
   whatsappConnectionSessions WhatsAppConnectionSession[]
+  whatsappTemplates          WhatsappTemplate[]
 }
 
 model TenantChannel {
@@ -292,6 +303,33 @@ model WhatsAppConnectionSession {
 
   @@index([tenantId, status])
   @@index([phoneNumberId])
+}
+
+model WhatsappTemplate {
+  id              String                 @id @default(cuid())
+  tenantId        String
+  metaTemplateId  String?
+  name            String
+  language        String                 @default("es")
+  category        String
+  status          WhatsappTemplateStatus @default(PENDING)
+  quality         String?
+  rejectionReason String?
+  bodyPreview     String
+  variableCount   Int                    @default(0)
+  componentsJson  Json                   @default("[]")
+  packKey         String?
+  lastError       String?
+  lastSyncedAt    DateTime?
+  provisionedAt   DateTime?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  tenant          Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name, language])
+  @@index([tenantId, status])
+  @@index([metaTemplateId])
+  @@index([tenantId, packKey])
 }
 
 model TenantAdmin {

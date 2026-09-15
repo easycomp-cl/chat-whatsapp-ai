@@ -10,3 +10,4 @@ Specs y contratos de API listos para implementar en el repo UI. El backend vive 
 | [flows-ui-mvp.md](./flows-ui-mvp.md) | Módulo de flujos conversacionales (inbox, revisiones, webhooks) |
 | [chatbotmanager-ui-rebrand.md](./chatbotmanager-ui-rebrand.md) | Rebrand EasyComp Chat Bot Manager + dominio `chatbotmanager.easycomp.cl` |
 | [whatsapp-embedded-signup-ui.md](./whatsapp-embedded-signup-ui.md) | Conectar WhatsApp Business (Embedded Signup) |
+| [whatsapp-templates-ui.md](./whatsapp-templates-ui.md) | Pack de plantillas Meta, Mis plantillas y envío fuera de 24 h |

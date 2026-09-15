@@ -4,7 +4,10 @@ import { TenantResolverService } from "../tenants/tenant-resolver.service.js";
 import { flowOrchestratorService } from "../flows/flow-orchestrator.service.js";
 import { ContentType } from "@prisma/client";
 import { messageMediaService } from "../conversations/message-media.service.js";
-import { inboundAudioService } from "../conversations/inbound-audio.service.js";
+import {
+  inboundAudioService,
+  resolveStoredInboundPipelineText
+} from "../conversations/inbound-audio.service.js";
 import type { NormalizedIncomingMessage } from "../../types/whatsapp.js";
 import { outboundWhatsAppReplyService } from "../channel/outbound-whatsapp-reply.service.js";
 import { WhatsAppSendError } from "../channel/whatsapp.client.js";
@@ -65,21 +68,39 @@ export class MessageRouterService {
         customerId: ingested.customer.id,
         botPhone: resolved.channel.phoneNumber
       });
-      return;
+
+      const alreadyReplied = await this.messageIngestService.hasBotReplyAfter({
+        conversationId: ingested.conversation.id,
+        after: ingested.message.createdAt
+      });
+      if (alreadyReplied) {
+        return;
+      }
+
+      logger.warn(
+        {
+          conversationId: ingested.conversation.id,
+          messageId: ingested.message.id,
+          contentType: ingested.message.contentType
+        },
+        "Duplicate inbound without bot reply; rerunning pipeline"
+      );
     }
 
-    let pipelineText = message.text;
+    let pipelineText = resolveStoredInboundPipelineText(ingested.message) || message.text;
 
     if (message.media?.type === "audio") {
-      const audioResult = await inboundAudioService.process({
-        tenantId: resolved.tenant.id,
-        conversationId: ingested.conversation.id,
-        messageId: ingested.message.id,
-        accessToken: resolved.accessToken,
-        media: message.media
-      });
-      pipelineText = audioResult.pipelineText;
-    } else if (message.media) {
+      if (!ingested.message.audioTranscript?.trim()) {
+        const audioResult = await inboundAudioService.process({
+          tenantId: resolved.tenant.id,
+          conversationId: ingested.conversation.id,
+          messageId: ingested.message.id,
+          accessToken: resolved.accessToken,
+          media: message.media
+        });
+        pipelineText = audioResult.pipelineText;
+      }
+    } else if (message.media && !ingested.isDuplicate) {
       await messageMediaService.safeIngestInbound({
         tenantId: resolved.tenant.id,
         conversationId: ingested.conversation.id,

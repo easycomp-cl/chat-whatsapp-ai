@@ -42,6 +42,54 @@ export type MetaGraphClientConfig = {
   redirectUri?: string;
 };
 
+export type GraphMessageTemplate = {
+  id?: string;
+  name?: string;
+  language?: string;
+  status?: string;
+  category?: string;
+  rejected_reason?: string;
+  quality_score?: { score?: string };
+  components?: unknown[];
+};
+
+export type GraphMessageTemplateList = {
+  data?: GraphMessageTemplate[];
+  paging?: { next?: string; cursors?: { after?: string } };
+};
+
+export type GraphCreateTemplateResponse = {
+  id?: string;
+  status?: string;
+  category?: string;
+};
+
+export class MetaGraphApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly body: string,
+    readonly code?: number
+  ) {
+    super(message);
+    this.name = "MetaGraphApiError";
+  }
+
+  get isRetryable(): boolean {
+    return this.status >= 500 || this.status === 408 || this.status === 429;
+  }
+
+  get isDuplicateTemplate(): boolean {
+    const lower = this.message.toLowerCase();
+    return (
+      lower.includes("already exists") ||
+      lower.includes("already in use") ||
+      lower.includes("duplicate") ||
+      this.code === 2388024
+    );
+  }
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return value as Record<string, unknown>;
@@ -321,5 +369,67 @@ export class MetaGraphClient {
       ...(json.name ? { name: json.name } : {}),
       ...(businessId ? { businessId } : {})
     };
+  }
+
+  async listMessageTemplates(
+    wabaId: string,
+    accessToken: string
+  ): Promise<GraphMessageTemplate[]> {
+    const templates: GraphMessageTemplate[] = [];
+    let url: string | null = this.graphUrl(
+      `/${wabaId}/message_templates?limit=100&fields=id,name,language,status,category,components,rejected_reason,quality_score`
+    );
+
+    while (url) {
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      const json = (await response.json().catch(() => ({}))) as GraphMessageTemplateList &
+        GraphErrorBody;
+
+      if (!response.ok) {
+        throw this.templateGraphError(response.status, json);
+      }
+
+      templates.push(...(json.data ?? []));
+      url = json.paging?.next ?? null;
+    }
+
+    return templates;
+  }
+
+  async createMessageTemplate(
+    wabaId: string,
+    accessToken: string,
+    payload: Record<string, unknown>
+  ): Promise<GraphCreateTemplateResponse> {
+    const response = await fetch(this.graphUrl(`/${wabaId}/message_templates`), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+    const json = (await response.json().catch(() => ({}))) as GraphCreateTemplateResponse &
+      GraphErrorBody;
+
+    if (!response.ok || !json.id) {
+      throw this.templateGraphError(response.status, json);
+    }
+
+    return {
+      id: json.id,
+      ...(json.status ? { status: json.status } : {}),
+      ...(json.category ? { category: json.category } : {})
+    };
+  }
+
+  private templateGraphError(status: number, json: GraphErrorBody): MetaGraphApiError {
+    const message =
+      json.error?.error_user_msg ??
+      json.error?.message ??
+      "No se pudo hablar con la API de plantillas de Meta.";
+    return new MetaGraphApiError(message, status, JSON.stringify(json), json.error?.code);
   }
 }

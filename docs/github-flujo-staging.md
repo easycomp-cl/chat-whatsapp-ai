@@ -15,7 +15,7 @@
    - **Deploy** (`deploy-staging.yml`): solo si cambian `src/`, `prisma/`, `Dockerfile`, etc.
      - Build imagen Docker → ECR `chat-whatsapp-ai:latest`
      - `force-new-deployment` en ECS `chat-whatsapp-ai-combined`
-     - Health check en `https://api.conversai.easycomp.cl/health`
+     - Health check en `https://api-chatbotmanager.easycomp.cl/health`
 3. Cuando termines de probar en la semana: `.\scripts\aws-staging-stop.ps1` (apaga Fargate; el ALB sigue).
 4. **Opcional — apagado automático 23:59 (Chile):** `.\scripts\setup-aws-nightly-stop.ps1` (~USD 0/mes).
 

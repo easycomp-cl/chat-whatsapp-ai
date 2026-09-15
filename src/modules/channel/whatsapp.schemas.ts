@@ -148,8 +148,10 @@ const inboundMessageSchema = z.union([
 export const whatsappWebhookSchema = z.object({
   entry: z.array(
     z.object({
+      id: z.string().optional(),
       changes: z.array(
         z.object({
+          field: z.string().optional(),
           value: z.object({
             metadata: z
               .object({
@@ -192,7 +194,12 @@ export const whatsappWebhookSchema = z.object({
                     .optional()
                 })
               )
-              .optional()
+              .optional(),
+            event: z.string().optional(),
+            message_template_id: z.union([z.string(), z.number()]).optional(),
+            message_template_name: z.string().optional(),
+            message_template_language: z.string().optional(),
+            reason: z.string().optional()
           })
         })
       )

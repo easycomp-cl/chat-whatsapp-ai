@@ -11,6 +11,10 @@ import {
   startChatImportAnalysisWorker,
   stopChatImportAnalysisWorker
 } from "./modules/queue/chat-import-analysis.worker.js";
+import {
+  startWhatsappTemplatesWorker,
+  stopWhatsappTemplatesWorker
+} from "./modules/queue/whatsapp-templates.worker.js";
 import { disconnectRedis } from "./lib/redis.js";
 
 async function bootstrap() {
@@ -25,6 +29,7 @@ async function bootstrap() {
   startMessageWorker();
   startKnowledgeIndexWorker();
   startChatImportAnalysisWorker();
+  startWhatsappTemplatesWorker();
 
   const app = createApp();
 
@@ -37,6 +42,7 @@ async function bootstrap() {
     await stopMessageWorker();
     await stopKnowledgeIndexWorker();
     await stopChatImportAnalysisWorker();
+    await stopWhatsappTemplatesWorker();
     server.close(async () => {
       await disconnectRedis();
       await prisma.$disconnect();

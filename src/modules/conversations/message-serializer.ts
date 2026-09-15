@@ -3,6 +3,12 @@ import { readInboundMediaIngestState } from "../../utils/inbound-media-ingest-st
 import { readStoredOutboundInteractive } from "../../utils/whatsapp-interactive.js";
 import type { OutboundInteractiveMessage } from "../../utils/whatsapp-interactive.js";
 
+export type SerializedOutboundTemplate = {
+  name: string;
+  language: string;
+  body_parameters: string[];
+};
+
 export type SerializedMessageMedia = {
   has_media: boolean;
   mime_type: string | null;
@@ -33,6 +39,8 @@ export type SerializedMessage = {
   media_ingest_failed: boolean;
   media_ingest_error: string | null;
   interactive: OutboundInteractiveMessage | null;
+  template_name: string | null;
+  template: SerializedOutboundTemplate | null;
   aiGenerated: boolean;
   reply_to_message_id: string | null;
   quoted_text: string | null;
@@ -45,6 +53,7 @@ export type SerializedMessage = {
 export function serializeMessage(message: Message): SerializedMessage {
   const hasMedia = Boolean(message.mediaStoragePath && message.mediaStorageBucket);
   const mediaIngest = readInboundMediaIngestState(message.rawPayloadJson);
+  const template = readStoredOutboundTemplate(message.rawPayloadJson);
 
   return {
     id: message.id,
@@ -68,6 +77,8 @@ export function serializeMessage(message: Message): SerializedMessage {
     media_ingest_failed: mediaIngest.failed,
     media_ingest_error: mediaIngest.error,
     interactive: readStoredOutboundInteractive(message.rawPayloadJson),
+    template_name: template?.name ?? null,
+    template,
     aiGenerated: message.aiGenerated,
     reply_to_message_id: message.replyToMessageId,
     quoted_text: message.quotedText,
@@ -81,5 +92,21 @@ export function serializeMessage(message: Message): SerializedMessage {
       file_size: message.mediaFileSize,
       media_url_path: hasMedia ? `/messages/${message.id}/media-url` : null
     }
+  };
+}
+
+function readStoredOutboundTemplate(rawPayloadJson: unknown): SerializedOutboundTemplate | null {
+  if (!rawPayloadJson || typeof rawPayloadJson !== "object") return null;
+  const outbound = (rawPayloadJson as { outbound?: { template?: unknown } }).outbound;
+  const template = outbound?.template;
+  if (!template || typeof template !== "object") return null;
+  const row = template as { name?: unknown; language?: unknown; body_parameters?: unknown };
+  if (typeof row.name !== "string" || typeof row.language !== "string") return null;
+  return {
+    name: row.name,
+    language: row.language,
+    body_parameters: Array.isArray(row.body_parameters)
+      ? row.body_parameters.filter((item): item is string => typeof item === "string")
+      : []
   };
 }

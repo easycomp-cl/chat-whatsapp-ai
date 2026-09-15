@@ -75,7 +75,7 @@ async function upsertTenant(seed: {
       status: TenantStatus.ACTIVE,
       botGlobalEnabled: true,
       confidenceThreshold: 0.7,
-      defaultAiModel: "gpt-4o-mini"
+      defaultAiModel: "gpt-5.6-luna"
     },
     create: {
       id: seed.slug,
@@ -85,7 +85,7 @@ async function upsertTenant(seed: {
       status: TenantStatus.ACTIVE,
       botGlobalEnabled: true,
       confidenceThreshold: 0.7,
-      defaultAiModel: "gpt-4o-mini"
+      defaultAiModel: "gpt-5.6-luna"
     }
   });
 

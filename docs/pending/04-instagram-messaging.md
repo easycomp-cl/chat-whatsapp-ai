@@ -144,7 +144,7 @@ POST /{page-id}/subscribed_apps?subscribed_fields=messages&access_token={PAGE_AC
 
 | Campo | Valor sugerido |
 |-------|----------------|
-| Callback URL | `https://api.conversai.easycomp.cl/webhooks/instagram` |
+| Callback URL | `https://api-chatbotmanager.easycomp.cl/webhooks/instagram` |
 | Verify token | Reutilizar `WHATSAPP_VERIFY_TOKEN` o `META_VERIFY_TOKEN` genérico |
 | Campos | `messages` (mínimo); opcional: `messaging_postbacks`, reacciones |
 
@@ -339,7 +339,7 @@ Flujo distinto al de WhatsApp Embedded Signup:
 
 | Qué | URL |
 |-----|-----|
-| UI | `https://conversai.easycomp.cl` |
-| API | `https://api.conversai.easycomp.cl` |
-| Webhook WhatsApp (hoy) | `https://api.conversai.easycomp.cl/webhooks/whatsapp` |
-| Webhook Instagram (propuesto) | `https://api.conversai.easycomp.cl/webhooks/instagram` |
+| UI | `https://chatbotmanager.easycomp.cl` |
+| API | `https://api-chatbotmanager.easycomp.cl` |
+| Webhook WhatsApp (hoy) | `https://api-chatbotmanager.easycomp.cl/webhooks/whatsapp` |
+| Webhook Instagram (propuesto) | `https://api-chatbotmanager.easycomp.cl/webhooks/instagram` |

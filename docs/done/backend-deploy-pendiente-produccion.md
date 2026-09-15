@@ -8,7 +8,7 @@
 
 ## Resumen
 
-La UI apunta a `https://api.conversai.easycomp.cl`. Si inbox responde **404**, producción está atrasada respecto al repo. El arranque del contenedor aplica migraciones Prisma (`start:prod`).
+La UI apunta a `https://api-chatbotmanager.easycomp.cl`. Si inbox responde **404**, producción está atrasada respecto al repo. El arranque del contenedor aplica migraciones Prisma (`start:prod`).
 
 ## Endpoints de este release
 

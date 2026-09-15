@@ -6,6 +6,7 @@ import type {
   NormalizedIncomingEdit,
   NormalizedIncomingRevoke,
   NormalizedMessageStatus,
+  NormalizedTemplateStatusUpdate,
   NormalizedWebhookEvent,
   ReplyContext
 } from "../../types/whatsapp.js";
@@ -46,6 +47,28 @@ export function normalizeWebhookEvents(payload: unknown): NormalizedWebhookEvent
   for (const entry of parsed.entry) {
     for (const change of entry.changes) {
       const value = change.value;
+      const isTemplateStatus =
+        change.field === "message_template_status_update" ||
+        Boolean(value.message_template_name);
+
+      if (isTemplateStatus && value.message_template_name) {
+        const templateStatus: NormalizedTemplateStatusUpdate = {
+          kind: "template_status",
+          wabaId: entry.id ?? "",
+          name: value.message_template_name,
+          language: value.message_template_language ?? "es",
+          event: value.event ?? "PENDING",
+          timestamp: new Date(),
+          rawPayload: payload
+        };
+        if (value.message_template_id != null) {
+          templateStatus.metaTemplateId = String(value.message_template_id);
+        }
+        if (value.reason) templateStatus.reason = value.reason;
+        normalized.push(templateStatus);
+        continue;
+      }
+
       const toPhoneDisplay = value.metadata?.display_phone_number;
       const toPhoneNumberId = value.metadata?.phone_number_id ?? "";
 

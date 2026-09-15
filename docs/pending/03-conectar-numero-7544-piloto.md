@@ -30,7 +30,7 @@ Debe mostrar `display_phone_number` con el 7544.
 
 ## 4. API encendida
 
-El script llama a `https://api.conversai.easycomp.cl`. Si falla DNS o timeout:
+El script llama a `https://api-chatbotmanager.easycomp.cl`. Si falla DNS o timeout:
 
 - Enciende ECS staging (`aws-staging-start` si lo tienes).
 - O apunta a local: `-ApiBase "http://localhost:3000"` con `npm run dev`.
@@ -54,7 +54,7 @@ En Secrets Manager, actualiza `META_SYSTEM_USER_ACCESS_TOKEN` con el mismo token
 ## 7. Probar
 
 1. Desde tu WhatsApp **4977**, envía **Hola** al **+56 9 4686 7544**.
-2. Abre **https://conversai.easycomp.cl/app/conversations** (login del negocio `tenant-twd`).
+2. Abre **https://chatbotmanager.easycomp.cl/app/conversations** (login del negocio `tenant-twd`).
 
 ## Perfil UI ↔ tenant
 

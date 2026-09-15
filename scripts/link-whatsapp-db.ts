@@ -1,6 +1,6 @@
 /**
  * Vincula WhatsApp en BD (Prisma) sin llamar al API.
- * Útil cuando ECS está apagado o api.conversai.easycomp.cl no responde.
+ * Útil cuando ECS está apagado o api-chatbotmanager.easycomp.cl no responde.
  *
  * Uso:
  *   npx tsx scripts/link-whatsapp-db.ts

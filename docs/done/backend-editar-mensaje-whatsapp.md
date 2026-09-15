@@ -266,7 +266,7 @@ La UI **no necesita cambios** una vez desplegado el backend con el contrato desc
 - [ ] Implementar `updateMessageText` en `MessageIngestService`
 - [ ] Probar en staging con mensaje humano reciente (<15 min)
 - [ ] Verificar que `externalId` del mensaje es el `wamid` correcto
-- [ ] Desplegar backend (`api.conversai.easycomp.cl` o entorno correspondiente)
+- [ ] Desplegar backend (`api-chatbotmanager.easycomp.cl` o entorno correspondiente)
 - [ ] Confirmar que `BOT_API_BASE_URL` y `BOT_API_SECRET` en Vercel apuntan al backend actualizado
 
 ---
@@ -276,7 +276,7 @@ La UI **no necesita cambios** una vez desplegado el backend con el contrato desc
 ### 1. cURL directo al bot API
 
 ```bash
-curl -X PATCH "https://api.conversai.easycomp.cl/messages/<MESSAGE_ID>" \
+curl -X PATCH "https://api-chatbotmanager.easycomp.cl/messages/<MESSAGE_ID>" \
   -H "X-API-Key: <BOT_API_SECRET>" \
   -H "Content-Type: application/json" \
   -d '{"text":"Mensaje corregido desde API"}'

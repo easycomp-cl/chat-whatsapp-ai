@@ -1,16 +1,16 @@
-# ConversAI — Especificación técnica del módulo de Flujos Conversacionales
+# EasyComp Chat Bot Manager — Especificación técnica del módulo de Flujos Conversacionales
 
 **Documento para equipos Frontend y Backend**  
 **Versión:** 1.0  
 **Fecha:** 29-07-2026  
-**Producto:** ConversAI  
+**Producto:** EasyComp Chat Bot Manager  
 **Estado:** Propuesta para implementación MVP
 
 ---
 
 # 1. Objetivo
 
-Implementar dentro de ConversAI un módulo llamado **Flujos**, orientado a transformar conversaciones en procesos comerciales estructurados.
+Implementar dentro de EasyComp Chat Bot Manager un módulo llamado **Flujos**, orientado a transformar conversaciones en procesos comerciales estructurados.
 
 El módulo permitirá que una conversación pueda:
 
@@ -1175,7 +1175,7 @@ Crear evento
 ## Proveedores iniciales
 
 - Google Calendar.
-- Calendario interno de ConversAI.
+- Calendario interno de EasyComp Chat Bot Manager.
 - API personalizada.
 
 ## Reglas
@@ -1197,9 +1197,9 @@ Crear evento
 
 ```http
 Content-Type: application/json
-X-ConversAI-Event: quote.confirmed
-X-ConversAI-Delivery-Id: delivery_123
-X-ConversAI-Signature: sha256=...
+X-ChatBotManager-Event: quote.confirmed
+X-ChatBotManager-Delivery-Id: delivery_123
+X-ChatBotManager-Signature: sha256=...
 ```
 
 ## Reintentos
@@ -1587,11 +1587,11 @@ src/
 
 # 36. Propuesta de valor del módulo
 
-ConversAI no busca reemplazar herramientas generalistas de automatización.
+EasyComp Chat Bot Manager no busca reemplazar herramientas generalistas de automatización.
 
 Busca resolver procesos concretos de negocio desde una conversación.
 
-> El usuario configura el objetivo, los datos necesarios, las reglas y las revisiones. ConversAI interpreta al cliente, completa el proceso y entrega una solicitud, cotización, reserva o resultado estructurado.
+> El usuario configura el objetivo, los datos necesarios, las reglas y las revisiones. EasyComp Chat Bot Manager interpreta al cliente, completa el proceso y entrega una solicitud, cotización, reserva o resultado estructurado.
 
 La ventaja competitiva será:
 

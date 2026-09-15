@@ -19,15 +19,46 @@ describe("DecisionEngine", () => {
     vi.clearAllMocks();
   });
 
-  it("blocks when bot is globally disabled", async () => {
-    const result = await engine.evaluate({
-      tenantId: "t1",
-      botGlobalEnabled: false,
-      conversationId: "c1",
-      mode: ConversationMode.BOT,
-      botResumeAt: null
-    });
-    expect(result).toEqual({ canRespond: false, reason: "bot_disabled" });
+  it("blocks when bot is globally disabled and onboarding is required", async () => {
+    const previous = process.env.ONBOARDING_REQUIRED;
+    process.env.ONBOARDING_REQUIRED = "true";
+    try {
+      const result = await engine.evaluate({
+        tenantId: "t1",
+        botGlobalEnabled: false,
+        conversationId: "c1",
+        mode: ConversationMode.BOT,
+        botResumeAt: null
+      });
+      expect(result).toEqual({ canRespond: false, reason: "bot_disabled" });
+    } finally {
+      if (previous === undefined) {
+        delete process.env.ONBOARDING_REQUIRED;
+      } else {
+        process.env.ONBOARDING_REQUIRED = previous;
+      }
+    }
+  });
+
+  it("allows response when bot is disabled but onboarding is optional", async () => {
+    const previous = process.env.ONBOARDING_REQUIRED;
+    process.env.ONBOARDING_REQUIRED = "false";
+    try {
+      const result = await engine.evaluate({
+        tenantId: "t1",
+        botGlobalEnabled: false,
+        conversationId: "c1",
+        mode: ConversationMode.BOT,
+        botResumeAt: null
+      });
+      expect(result).toEqual({ canRespond: true, resumedFromSchedule: false });
+    } finally {
+      if (previous === undefined) {
+        delete process.env.ONBOARDING_REQUIRED;
+      } else {
+        process.env.ONBOARDING_REQUIRED = previous;
+      }
+    }
   });
 
   it("blocks when conversation is in human mode", async () => {

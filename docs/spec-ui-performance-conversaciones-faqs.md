@@ -68,10 +68,10 @@ Cache HTTP: `max-age=5` (lista dinámica).
 
 ```bash
 curl -s -H "X-API-Key: $INTERNAL_API_KEY" \
-  "https://api.conversai.easycomp.cl/businesses/{id}/conversations/inbox" | jq '.conversations | length'
+  "https://api-chatbotmanager.easycomp.cl/businesses/{id}/conversations/inbox" | jq '.conversations | length'
 
 curl -sI -H "X-API-Key: $INTERNAL_API_KEY" \
-  "https://api.conversai.easycomp.cl/businesses/{id}/faqs" | grep -i cache-control
+  "https://api-chatbotmanager.easycomp.cl/businesses/{id}/faqs" | grep -i cache-control
 ```
 
 Esperado FAQs: `Cache-Control: private, max-age=60, stale-while-revalidate=120`
