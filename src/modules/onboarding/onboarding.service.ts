@@ -32,6 +32,28 @@ function textByteSize(value: string): number {
   return Buffer.byteLength(value, "utf8");
 }
 
+function hydrateHumanContactFromAdmin(
+  draft: OnboardingDraft,
+  primaryAdmin?: {
+    name: string;
+    phoneNumber: string;
+    notifyOnHandoff: boolean;
+    phoneVerifiedAt: Date | null;
+  } | null
+): OnboardingDraft {
+  if (!primaryAdmin) return draft;
+  return {
+    ...draft,
+    human_contact: {
+      ...draft.human_contact,
+      admin_phone: draft.human_contact?.admin_phone ?? primaryAdmin.phoneNumber,
+      admin_name: draft.human_contact?.admin_name ?? primaryAdmin.name,
+      notify_on_handoff: draft.human_contact?.notify_on_handoff ?? primaryAdmin.notifyOnHandoff,
+      admin_phone_verified_at: primaryAdmin.phoneVerifiedAt?.toISOString() ?? null
+    }
+  };
+}
+
 export class OnboardingService {
   async getSetupStatus(tenantId: string) {
     const tenant = await prisma.tenant.findUnique({
@@ -48,6 +70,7 @@ export class OnboardingService {
     }
 
     const setup = parseSetupMetadata(tenant.metadataJson);
+    setup.draft = hydrateHumanContactFromAdmin(setup.draft, tenant.admins[0] ?? null);
     const profileDoc = setup.generated?.profile_document_id
       ? await prisma.tenantDocument.findUnique({
           where: { id: setup.generated.profile_document_id },
@@ -87,6 +110,15 @@ export class OnboardingService {
 
     const setup = parseSetupMetadata(tenant.metadataJson);
     const nextDraft = mergeOnboardingDraft(setup.draft, patch);
+    const previousPhone = setup.draft.human_contact?.admin_phone?.trim();
+    const nextPhone = nextDraft.human_contact?.admin_phone?.trim();
+
+    if (previousPhone && nextPhone && previousPhone !== nextPhone) {
+      await prisma.tenantAdmin.updateMany({
+        where: { tenantId, phoneNumber: previousPhone },
+        data: { phoneVerifiedAt: null }
+      });
+    }
 
     const nextSetup = {
       ...setup,
@@ -153,6 +185,11 @@ export class OnboardingService {
       if (draft.human_contact?.admin_phone) {
         const adminPhone = draft.human_contact.admin_phone.trim();
         const adminName = draft.human_contact.admin_name?.trim() || "Administrador";
+        const verifiedAtRaw = draft.human_contact.admin_phone_verified_at;
+        const phoneVerifiedAt =
+          typeof verifiedAtRaw === "string" && verifiedAtRaw
+            ? new Date(verifiedAtRaw)
+            : undefined;
         await tx.tenantAdmin.upsert({
           where: {
             tenantId_phoneNumber: {
@@ -165,13 +202,19 @@ export class OnboardingService {
             name: adminName,
             phoneNumber: adminPhone,
             isPrimary: true,
-            notifyOnHandoff: draft.human_contact.notify_on_handoff ?? true
+            notifyOnHandoff: draft.human_contact.notify_on_handoff ?? true,
+            ...(phoneVerifiedAt && !Number.isNaN(phoneVerifiedAt.getTime())
+              ? { phoneVerifiedAt }
+              : {})
           },
           update: {
             name: adminName,
             isPrimary: true,
             notifyOnHandoff: draft.human_contact.notify_on_handoff ?? true,
-            isActive: true
+            isActive: true,
+            ...(phoneVerifiedAt && !Number.isNaN(phoneVerifiedAt.getTime())
+              ? { phoneVerifiedAt }
+              : {})
           }
         });
       }

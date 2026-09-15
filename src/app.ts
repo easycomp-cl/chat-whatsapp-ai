@@ -10,6 +10,9 @@ import { createApiRouter } from "./modules/api/router.js";
 import { receiveFlowWebhook } from "./modules/api/flow-triggers.controller.js";
 import { validateFlowWebhookSignature } from "./modules/flows/flow-webhook-signature.middleware.js";
 import { WhatsAppConnectionError } from "./modules/whatsapp-connection/whatsapp-connection.errors.js";
+import { AdminPhoneError } from "./modules/admin-phone/admin-phone.errors.js";
+import { WhatsappTemplateError } from "./modules/whatsapp-templates/whatsapp-templates.errors.js";
+import { getPublicPaymentLink } from "./modules/api/payment-links.controller.js";
 
 export function createApp() {
   const app = express();
@@ -37,6 +40,8 @@ export function createApp() {
       }
     })
   );
+
+  app.get("/pay/:code", getPublicPaymentLink);
 
   app.get("/health", async (_req, res) => {
     try {
@@ -74,7 +79,7 @@ export function createApp() {
       });
       return;
     }
-    if (err instanceof WhatsAppConnectionError) {
+    if (err instanceof WhatsAppConnectionError || err instanceof AdminPhoneError || err instanceof WhatsappTemplateError) {
       res.status(err.statusCode).json({
         ok: false,
         error: err.code,

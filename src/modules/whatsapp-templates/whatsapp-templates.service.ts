@@ -29,6 +29,7 @@ import {
   mapMetaTemplateStatus
 } from "./whatsapp-templates.utils.js";
 import type { SendConversationTemplateInput } from "./whatsapp-templates.schema.js";
+import { paymentLinkService } from "../payments/payment-link.service.js";
 
 const SYNC_TTL_MS = 10 * 60 * 1000;
 const CREATE_ATTEMPTS = 3;
@@ -314,6 +315,18 @@ export class WhatsappTemplatesService {
     }
 
     const bodyParameters = input.body_parameters ?? [];
+    let buttonParameters = input.button_parameters;
+
+    if (input.template_name === "link_pago_es") {
+      const ensured = await paymentLinkService.ensureForTemplateSend({
+        tenantId: conversation.tenantId,
+        conversationId: conversation.id,
+        ...(buttonParameters?.[0] ? { requestedCode: buttonParameters[0] } : {}),
+        ...(bodyParameters[1] ? { orderRef: bodyParameters[1] } : {})
+      });
+      buttonParameters = [ensured.code];
+    }
+
     const expectedBodyVars =
       definition?.parameterFields.filter((field) => field.component === "body").length ??
       local?.variableCount ??
@@ -340,7 +353,7 @@ export class WhatsappTemplatesService {
       buildSendTemplateComponents({
         ...(definition ? { definition } : {}),
         bodyParameters,
-        ...(input.button_parameters ? { buttonParameters: input.button_parameters } : {})
+        ...(buttonParameters ? { buttonParameters } : {})
       });
 
     const previewSource = definition?.bodyText ?? local?.bodyPreview ?? input.template_name;

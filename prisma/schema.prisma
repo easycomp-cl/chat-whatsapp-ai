@@ -261,6 +261,8 @@ model Tenant {
   flowWebhookDeliveries FlowWebhookDelivery[]
   whatsappConnectionSessions WhatsAppConnectionSession[]
   whatsappTemplates          WhatsappTemplate[]
+  adminPhoneVerifications    AdminPhoneVerification[]
+  paymentLinks               PaymentLink[]
 }
 
 model TenantChannel {
@@ -333,17 +335,18 @@ model WhatsappTemplate {
 }
 
 model TenantAdmin {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   tenantId        String
   name            String
   phoneNumber     String
-  role            String   @default("collaborator")
-  notifyOnHandoff Boolean  @default(true)
-  isPrimary       Boolean  @default(false)
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role            String    @default("collaborator")
+  notifyOnHandoff Boolean   @default(true)
+  phoneVerifiedAt DateTime?
+  isPrimary       Boolean   @default(false)
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   assignedConversations Conversation[]
   createdFlowDefinitions FlowDefinition[] @relation("FlowDefinitionCreatedBy")
   updatedFlowDefinitions FlowDefinition[] @relation("FlowDefinitionUpdatedBy")
@@ -352,6 +355,33 @@ model TenantAdmin {
   resolvedFlowReviews    FlowReview[]     @relation("FlowReviewReviewer")
 
   @@unique([tenantId, phoneNumber])
+}
+
+model AdminPhoneVerification {
+  id          String    @id @default(cuid())
+  tenantId    String
+  phoneNumber String
+  codeHash    String
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, phoneNumber, createdAt])
+}
+
+model PaymentLink {
+  id              String   @id @default(cuid())
+  tenantId        String
+  code            String   @unique
+  orderRef        String
+  destinationUrl  String?
+  conversationId  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
 }
 
 model TenantConfig {

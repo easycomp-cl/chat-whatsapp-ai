@@ -1,10 +1,17 @@
 import { ConversationMode } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
+import { logger } from "../../lib/logger.js";
 import { WhatsAppClient } from "../channel/whatsapp.client.js";
 import { usageEventsService, USAGE_EVENT_TYPES } from "../metrics/usage-events.service.js";
+import {
+  STANDARD_TEMPLATE_LANGUAGE,
+  buildSendTemplateComponents,
+  getStandardTemplate
+} from "../whatsapp-templates/standard-template-pack.js";
 import { HANDOFF_REASON_LABELS, type HandoffReason } from "./prompts.js";
 
 const DEFAULT_HANDOFF_MESSAGE = "Déjame revisarlo con un asesor y te respondemos en breve.";
+const HANDOFF_TEMPLATE_NAME = "aviso_handoff_es";
 
 export class HandoffService {
   constructor(private readonly whatsAppClient = new WhatsAppClient()) {}
@@ -22,7 +29,12 @@ export class HandoffService {
     accessToken: string;
   }): Promise<{ reply: string }> {
     const agents = await prisma.tenantAdmin.findMany({
-      where: { tenantId: input.tenantId, isActive: true, notifyOnHandoff: true }
+      where: {
+        tenantId: input.tenantId,
+        isActive: true,
+        notifyOnHandoff: true,
+        phoneVerifiedAt: { not: null }
+      }
     });
 
     const primaryAgent = agents.find((a) => a.isPrimary) ?? agents[0];
@@ -37,32 +49,46 @@ export class HandoffService {
     });
 
     const reply = input.handoffMessage ?? DEFAULT_HANDOFF_MESSAGE;
+    const template = await prisma.whatsappTemplate.findUnique({
+      where: {
+        tenantId_name_language: {
+          tenantId: input.tenantId,
+          name: HANDOFF_TEMPLATE_NAME,
+          language: STANDARD_TEMPLATE_LANGUAGE
+        }
+      }
+    });
 
-    const reasonLabel = HANDOFF_REASON_LABELS[input.handoffReason];
-    const alertText = [
-      "⚠️ Atención humana requerida",
-      "",
-      `Negocio: ${input.tenantName}`,
-      `Cliente: ${input.customerName ?? "Sin nombre"}`,
-      `Número: ${input.customerPhone}`,
-      "",
-      "Último mensaje:",
-      `"${input.messageText}"`,
-      "",
-      "Motivo:",
-      reasonLabel
-    ].join("\n");
-
-    for (const agent of agents) {
-      try {
-        await this.whatsAppClient.sendTextMessage({
-          phoneNumberId: input.channelPhoneNumberId,
-          accessToken: input.accessToken,
-          to: agent.phoneNumber,
-          text: alertText
-        });
-      } catch {
-        // Notification failure should not block handoff
+    let agentsNotified = 0;
+    if (!template || template.status !== "APPROVED") {
+      logger.warn(
+        { tenantId: input.tenantId, conversationId: input.conversationId, status: template?.status },
+        "Handoff: no se envía aviso al admin porque aviso_handoff_es no está APPROVED"
+      );
+    } else {
+      const definition = getStandardTemplate(HANDOFF_TEMPLATE_NAME);
+      const customerLabel = input.customerName?.trim() || input.customerPhone;
+      for (const agent of agents) {
+        const bodyParameters = [agent.name, input.tenantName, customerLabel];
+        try {
+          await this.whatsAppClient.sendTemplateMessage({
+            phoneNumberId: input.channelPhoneNumberId,
+            accessToken: input.accessToken,
+            to: agent.phoneNumber,
+            templateName: HANDOFF_TEMPLATE_NAME,
+            languageCode: STANDARD_TEMPLATE_LANGUAGE,
+            components: buildSendTemplateComponents({
+              ...(definition ? { definition } : {}),
+              bodyParameters
+            })
+          });
+          agentsNotified += 1;
+        } catch (error) {
+          logger.warn(
+            { err: error, tenantId: input.tenantId, adminId: agent.id },
+            "Handoff: falló el envío de aviso_handoff_es"
+          );
+        }
       }
     }
 
@@ -70,7 +96,11 @@ export class HandoffService {
       tenantId: input.tenantId,
       conversationId: input.conversationId,
       eventType: USAGE_EVENT_TYPES.HUMAN_HANDOFF,
-      metadata: { handoffReason: input.handoffReason, agentsNotified: agents.length }
+      metadata: {
+        handoffReason: input.handoffReason,
+        agentsNotified,
+        reasonLabel: HANDOFF_REASON_LABELS[input.handoffReason]
+      }
     });
 
     return { reply };

@@ -138,6 +138,11 @@ import {
   provisionDefaultWhatsappTemplates,
   sendConversationTemplateMessage
 } from "./whatsapp-templates.controller.js";
+import {
+  confirmAdminPhoneVerification,
+  sendAdminPhoneVerification
+} from "./admin-phone.controller.js";
+import { adminPhoneVerificationLimiter } from "../admin-phone/admin-phone.rate-limit.js";
 
 export function createApiRouter() {
   const router = Router();
@@ -152,6 +157,16 @@ export function createApiRouter() {
   router.get("/businesses/:id/setup-status", getSetupStatus);
   router.patch("/businesses/:id/onboarding", patchOnboarding);
   router.post("/businesses/:id/onboarding/complete", completeOnboarding);
+  router.post(
+    "/businesses/:id/admin-phone/verification",
+    adminPhoneVerificationLimiter,
+    sendAdminPhoneVerification
+  );
+  router.post(
+    "/businesses/:id/admin-phone/verification/confirm",
+    adminPhoneVerificationLimiter,
+    confirmAdminPhoneVerification
+  );
   router.post("/businesses/:id/whatsapp-accounts", createWhatsappAccount);
   router.post(
     "/whatsapp/embedded-signup/complete",

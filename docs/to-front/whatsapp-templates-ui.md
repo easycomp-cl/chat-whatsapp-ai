@@ -149,4 +149,11 @@ No son plantillas globales: cada negocio tiene **su copia** en su WABA.
 ## Fuera de alcance UI
 
 - Crear plantillas custom distintas del pack (más adelante).
-- Envío de OTP admin (`verificar_responsable_es`) y aviso de handoff al celular del responsable: el pack se crea, el envío a un número que no es la conversación del cliente es otro endpoint.
+
+OTP admin y aviso de handoff: el pack se crea en Meta; el envío al WhatsApp **personal** del responsable es:
+
+- `POST /businesses/:id/admin-phone/verification`
+- `POST /businesses/:id/admin-phone/verification/confirm`
+- Worker de handoff usa `aviso_handoff_es` solo si el número está verificado.
+
+Página de pago: `https://chatbotmanager.easycomp.cl/pay/:code` (ruta pública en la UI). El backend guarda el código al enviar `link_pago_es` y expone `GET /pay/:code` sin API key.

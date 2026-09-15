@@ -26,13 +26,13 @@ export const onboardingPatchSchema = z.object({
       delivery_notes: z.string().optional()
     })
     .optional(),
-  human_contact: z
-    .object({
-      admin_name: z.string().min(1).optional(),
-      admin_phone: z.string().min(8).optional(),
-      notify_on_handoff: z.boolean().optional()
-    })
-    .optional(),
+    human_contact: z
+      .object({
+        admin_name: z.string().min(1).optional(),
+        admin_phone: z.string().min(8).optional(),
+        notify_on_handoff: z.boolean().optional()
+      })
+      .optional(),
   bot_identity: z
     .object({
       bot_name: z.string().min(1).optional(),

@@ -71,7 +71,12 @@ export function mergeOnboardingDraft(
     next.operations = { ...existing.operations, ...patch.operations };
   }
   if (patch.human_contact) {
+    const previousPhone = existing.human_contact?.admin_phone?.trim();
+    const nextPhone = patch.human_contact.admin_phone?.trim();
     next.human_contact = { ...existing.human_contact, ...patch.human_contact };
+    if (nextPhone && previousPhone && nextPhone !== previousPhone) {
+      next.human_contact.admin_phone_verified_at = null;
+    }
   }
   if (patch.bot_identity) {
     next.bot_identity = { ...existing.bot_identity, ...patch.bot_identity };
