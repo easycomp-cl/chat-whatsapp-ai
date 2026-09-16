@@ -12,7 +12,7 @@ import { validateFlowWebhookSignature } from "./modules/flows/flow-webhook-signa
 import { WhatsAppConnectionError } from "./modules/whatsapp-connection/whatsapp-connection.errors.js";
 import { AdminPhoneError } from "./modules/admin-phone/admin-phone.errors.js";
 import { WhatsappTemplateError } from "./modules/whatsapp-templates/whatsapp-templates.errors.js";
-import { getPublicPaymentLink } from "./modules/api/payment-links.controller.js";
+import { getPublicPaymentLink, getPublicPhoneVerification, confirmPublicPhoneVerification } from "./modules/api/payment-links.controller.js";
 
 export function createApp() {
   const app = express();
@@ -42,6 +42,8 @@ export function createApp() {
   );
 
   app.get("/pay/:code", getPublicPaymentLink);
+  app.get("/verify-phone/:token", getPublicPhoneVerification);
+  app.post("/verify-phone/:token", confirmPublicPhoneVerification);
 
   app.get("/health", async (_req, res) => {
     try {

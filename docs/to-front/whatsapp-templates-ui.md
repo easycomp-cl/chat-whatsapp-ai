@@ -113,7 +113,7 @@ Errores útiles:
 
 | name | Uso |
 |------|-----|
-| `verificar_responsable_es` | OTP admin (AUTHENTICATION) |
+| `verificar_responsable_es` | Confirmar WhatsApp de admin/asistente (botón link) |
 | `aviso_handoff_es` | Cliente pidió humano → WhatsApp del responsable |
 | `seguimiento_asesor_es` | Recontacto ventana cerrada |
 | `pedido_actualizacion_es` | Estado de pedido |
@@ -152,8 +152,9 @@ No son plantillas globales: cada negocio tiene **su copia** en su WABA.
 
 OTP admin y aviso de handoff: el pack se crea en Meta; el envío al WhatsApp **personal** del responsable es:
 
-- `POST /businesses/:id/admin-phone/verification`
-- `POST /businesses/:id/admin-phone/verification/confirm`
+- `POST /businesses/:id/admin-phone/verification` (manda `verificar_responsable_es` UTILITY con botón Confirmar)
+- El admin toca el botón → `https://chatbotmanager.easycomp.cl/verify-phone/:token`
+- `GET`/`POST /verify-phone/:token` (público) marca `phoneVerifiedAt`
 - Worker de handoff usa `aviso_handoff_es` solo si el número está verificado.
 
 Página de pago: `https://chatbotmanager.easycomp.cl/pay/:code` (ruta pública en la UI). El backend guarda el código al enviar `link_pago_es` y expone `GET /pay/:code` sin API key.

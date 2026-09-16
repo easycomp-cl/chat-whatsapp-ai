@@ -34,13 +34,23 @@ export const STANDARD_TEMPLATE_PACK: StandardTemplateDefinition[] = [
   {
     name: "verificar_responsable_es",
     language: STANDARD_TEMPLATE_LANGUAGE,
-    category: "AUTHENTICATION",
-    productUse: "OTP al WhatsApp personal del admin",
-    bodyPreview: "Tu código de verificación es {{1}}. No lo compartas.",
-    authentication: { codeExpirationMinutes: 10 },
+    category: "UTILITY",
+    productUse: "Confirmar el WhatsApp personal de un admin o asistente",
+    bodyPreview:
+      "Hola {{1}}, fuiste agregado al equipo de {{2}}. Confirma que este número es correcto.",
+    bodyText:
+      "Hola {{1}}, fuiste agregado al equipo de {{2}}. Confirma que este número es correcto.",
+    bodyExamples: ["María", "EasyComp Repuestos"],
+    urlButton: {
+      text: "Confirmar",
+      url: "https://chatbotmanager.easycomp.cl/verify-phone/{{1}}",
+      example: "eq7k2m9p1a"
+    },
     allowCategoryChange: false,
     parameterFields: [
-      { component: "body", index: 1, label: "Código OTP", example: "123456" }
+      { component: "body", index: 1, label: "Nombre", example: "María" },
+      { component: "body", index: 2, label: "Nombre del negocio", example: "EasyComp Repuestos" },
+      { component: "button", index: 0, label: "Token de confirmación", example: "eq7k2m9p1a" }
     ]
   },
   {

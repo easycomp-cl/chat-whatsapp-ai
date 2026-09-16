@@ -1,10 +1,11 @@
-import { createHash, randomInt, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { env } from "../../config/env.js";
 import { prisma } from "../../lib/prisma.js";
 import { WhatsAppClient } from "../channel/whatsapp.client.js";
 import { TenantResolverService } from "../tenants/tenant-resolver.service.js";
 import { requireTenantExists } from "../../utils/tenant-resource.js";
+import { parseSetupMetadata } from "../onboarding/setup-status.service.js";
 import {
   STANDARD_TEMPLATE_LANGUAGE,
   buildSendTemplateComponents,
@@ -12,13 +13,13 @@ import {
 } from "../whatsapp-templates/standard-template-pack.js";
 import { adminPhoneError } from "./admin-phone.errors.js";
 
-const OTP_TTL_MS = 10 * 60 * 1000;
-const OTP_RESEND_WINDOW_MS = 60 * 1000;
-const OTP_MAX_PER_HOUR = 5;
-const AUTH_TEMPLATE_NAME = "verificar_responsable_es";
+const LINK_TTL_MS = 24 * 60 * 60 * 1000;
+const RESEND_WINDOW_MS = 60 * 1000;
+const MAX_PER_HOUR = 5;
+const VERIFY_TEMPLATE_NAME = "verificar_responsable_es";
 
-function hashOtp(phone: string, code: string): string {
-  return createHash("sha256").update(`${env.ENCRYPTION_SECRET}:${phone}:${code}`).digest("hex");
+function hashToken(token: string): string {
+  return createHash("sha256").update(`${env.ENCRYPTION_SECRET}:verify-phone:${token}`).digest("hex");
 }
 
 function hashesEqual(left: string, right: string): boolean {
@@ -28,6 +29,18 @@ function hashesEqual(left: string, right: string): boolean {
   return timingSafeEqual(a, b);
 }
 
+function maskPhone(phone: string): string {
+  const digits = phone.replace(/[^\d+]/g, "");
+  if (digits.length < 7) return "****";
+  return `${digits.slice(0, 4)}****${digits.slice(-3)}`;
+}
+
+function publicStatus(row: { consumedAt: Date | null; expiresAt: Date }) {
+  if (row.consumedAt) return "used" as const;
+  if (row.expiresAt.getTime() < Date.now()) return "expired" as const;
+  return "pending" as const;
+}
+
 export class AdminPhoneService {
   constructor(
     private readonly tenantResolver = new TenantResolverService(),
@@ -35,8 +48,11 @@ export class AdminPhoneService {
   ) {}
 
   async sendVerification(tenantId: string, phone: string) {
-    const tenantExists = await requireTenantExists(tenantId);
-    if (!tenantExists) {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      include: { admins: { where: { phoneNumber: phone }, take: 1 } }
+    });
+    if (!tenant) {
       throw adminPhoneError("tenant_not_found", "No existe el negocio indicado.", 404);
     }
 
@@ -45,7 +61,7 @@ export class AdminPhoneService {
       where: {
         tenantId_name_language: {
           tenantId,
-          name: AUTH_TEMPLATE_NAME,
+          name: VERIFY_TEMPLATE_NAME,
           language: STANDARD_TEMPLATE_LANGUAGE
         }
       }
@@ -54,7 +70,7 @@ export class AdminPhoneService {
     if (!template || template.status !== "APPROVED") {
       throw adminPhoneError(
         "template_not_approved",
-        "Conecta WhatsApp y espera la aprobación de la plantilla de verificación antes de enviar el código.",
+        "Conecta WhatsApp y espera la aprobación de la plantilla de confirmación antes de enviarla.",
         409
       );
     }
@@ -64,10 +80,10 @@ export class AdminPhoneService {
       where: { tenantId, phoneNumber: phone },
       orderBy: { createdAt: "desc" }
     });
-    if (latest && now - latest.createdAt.getTime() < OTP_RESEND_WINDOW_MS) {
+    if (latest && now - latest.createdAt.getTime() < RESEND_WINDOW_MS) {
       throw adminPhoneError(
         "too_many_requests",
-        "Espera un minuto antes de pedir otro código.",
+        "Espera un minuto antes de enviar otra confirmación.",
         429
       );
     }
@@ -79,7 +95,7 @@ export class AdminPhoneService {
         createdAt: { gte: new Date(now - 60 * 60 * 1000) }
       }
     });
-    if (hourCount >= OTP_MAX_PER_HOUR) {
+    if (hourCount >= MAX_PER_HOUR) {
       throw adminPhoneError(
         "too_many_requests",
         "Demasiados intentos. Espera una hora e inténtalo de nuevo.",
@@ -87,18 +103,24 @@ export class AdminPhoneService {
       );
     }
 
-    const code = randomInt(0, 1_000_000).toString().padStart(6, "0");
-    const definition = getStandardTemplate(AUTH_TEMPLATE_NAME);
+    const setup = parseSetupMetadata(tenant.metadataJson);
+    const recipientName =
+      tenant.admins[0]?.name?.trim() ||
+      setup.draft.human_contact?.admin_name?.trim() ||
+      "equipo";
+    const token = randomBytes(12).toString("hex");
+    const definition = getStandardTemplate(VERIFY_TEMPLATE_NAME);
     const components = buildSendTemplateComponents({
       ...(definition ? { definition } : {}),
-      bodyParameters: [code]
+      bodyParameters: [recipientName, tenant.name],
+      buttonParameters: [token]
     });
 
     await this.whatsAppClient.sendTemplateMessage({
       phoneNumberId: channel.phoneNumberId,
       accessToken: channel.accessToken,
       to: phone,
-      templateName: AUTH_TEMPLATE_NAME,
+      templateName: VERIFY_TEMPLATE_NAME,
       languageCode: STANDARD_TEMPLATE_LANGUAGE,
       components
     });
@@ -107,38 +129,88 @@ export class AdminPhoneService {
       data: {
         tenantId,
         phoneNumber: phone,
-        codeHash: hashOtp(phone, code),
-        expiresAt: new Date(now + OTP_TTL_MS)
+        codeHash: hashToken(token),
+        expiresAt: new Date(now + LINK_TTL_MS)
       }
     });
 
     return {
       ok: true as const,
-      expires_in_sec: Math.floor(OTP_TTL_MS / 1000),
+      expires_in_sec: Math.floor(LINK_TTL_MS / 1000),
       phone
     };
   }
 
-  async confirmVerification(tenantId: string, phone: string, code: string) {
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId },
-      select: { id: true, metadataJson: true }
-    });
-    if (!tenant) {
-      throw adminPhoneError("tenant_not_found", "No existe el negocio indicado.", 404);
+  async getPublicByToken(token: string) {
+    const row = await this.findByToken(token);
+    if (!row) {
+      return {
+        ok: true as const,
+        found: false,
+        status: "invalid" as const,
+        business_name: null,
+        phone_masked: null
+      };
     }
 
+    return {
+      ok: true as const,
+      found: true,
+      status: publicStatus(row),
+      business_name: row.tenant.name,
+      phone_masked: maskPhone(row.phoneNumber)
+    };
+  }
+
+  async confirmByToken(token: string) {
+    const row = await this.findByToken(token);
+    if (!row) {
+      throw adminPhoneError("invalid_code", "Este enlace no es válido.", 400);
+    }
+    if (row.consumedAt) {
+      throw adminPhoneError("invalid_code", "Este enlace ya fue usado.", 400);
+    }
+    if (row.expiresAt.getTime() < Date.now()) {
+      throw adminPhoneError("invalid_code", "Este enlace ya venció. Pide otra confirmación.", 400);
+    }
+
+    return this.markVerified(row.tenantId, row.phoneNumber, row.id);
+  }
+
+  async confirmVerification(tenantId: string, phone: string, code: string) {
     const latest = await prisma.adminPhoneVerification.findFirst({
       where: { tenantId, phoneNumber: phone, consumedAt: null },
       orderBy: { createdAt: "desc" }
     });
 
     if (!latest || latest.expiresAt.getTime() < Date.now()) {
-      throw adminPhoneError("invalid_code", "El código es inválido o ya venció.", 400);
+      throw adminPhoneError("invalid_code", "El enlace es inválido o ya venció.", 400);
     }
 
-    if (!hashesEqual(latest.codeHash, hashOtp(phone, code))) {
-      throw adminPhoneError("invalid_code", "El código es inválido o ya venció.", 400);
+    if (!hashesEqual(latest.codeHash, hashToken(code))) {
+      throw adminPhoneError("invalid_code", "El enlace es inválido o ya venció.", 400);
+    }
+
+    return this.markVerified(tenantId, phone, latest.id);
+  }
+
+  private async findByToken(token: string) {
+    const normalized = token.trim().toLowerCase();
+    if (!/^[a-z0-9]{8,64}$/.test(normalized)) return null;
+    return prisma.adminPhoneVerification.findFirst({
+      where: { codeHash: hashToken(normalized) },
+      include: { tenant: { select: { name: true } } },
+      orderBy: { createdAt: "desc" }
+    });
+  }
+
+  private async markVerified(tenantId: string, phone: string, verificationId: string) {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { id: true, metadataJson: true }
+    });
+    if (!tenant) {
+      throw adminPhoneError("tenant_not_found", "No existe el negocio indicado.", 404);
     }
 
     const verifiedAt = new Date();
@@ -150,7 +222,7 @@ export class AdminPhoneService {
 
     await prisma.$transaction(async (tx) => {
       await tx.adminPhoneVerification.update({
-        where: { id: latest.id },
+        where: { id: verificationId },
         data: { consumedAt: verifiedAt }
       });
 
@@ -226,6 +298,10 @@ export class AdminPhoneService {
   }
 
   private async requireActiveChannel(tenantId: string) {
+    const exists = await requireTenantExists(tenantId);
+    if (!exists) {
+      throw adminPhoneError("tenant_not_found", "No existe el negocio indicado.", 404);
+    }
     const channel = await prisma.tenantChannel.findUnique({
       where: {
         tenantId_channelType: {
@@ -237,7 +313,7 @@ export class AdminPhoneService {
     if (!channel || !channel.isActive || channel.status !== "ACTIVE") {
       throw adminPhoneError(
         "not_connected",
-        "Conecta WhatsApp del negocio antes de enviar el código de verificación.",
+        "Conecta WhatsApp del negocio antes de enviar la confirmación.",
         409
       );
     }

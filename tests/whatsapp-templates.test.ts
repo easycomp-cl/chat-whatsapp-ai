@@ -32,12 +32,14 @@ describe("standard template pack", () => {
     );
   });
 
-  it("arma payload AUTHENTICATION con OTP copy code", () => {
+  it("arma payload UTILITY de confirmación de equipo con botón URL", () => {
     const definition = getStandardTemplate("verificar_responsable_es");
     expect(definition).toBeDefined();
     const payload = buildCreateTemplatePayload(definition!);
-    expect(payload.category).toBe("AUTHENTICATION");
-    expect(JSON.stringify(payload)).toContain("COPY_CODE");
+    expect(payload.category).toBe("UTILITY");
+    expect(JSON.stringify(payload)).toContain("verify-phone");
+    expect(JSON.stringify(payload)).toContain("Confirmar");
+    expect(JSON.stringify(payload)).not.toContain("COPY_CODE");
   });
 
   it("arma payload UTILITY de pago con botón URL", () => {
