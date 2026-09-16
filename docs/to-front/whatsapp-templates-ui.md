@@ -96,9 +96,20 @@ POST /conversations/:id/messages/template
 
 `link_pago_es` también acepta `button_parameters: ["pedido-1042"]` (sufijo de `https://chatbotmanager.easycomp.cl/pay/{{1}}`).
 
-Respuesta `201`: mensaje serializado con `content_type: "TEMPLATE"`, `template_name` y `template`.
+Respuesta `201`: mensaje serializado con `content_type: "TEMPLATE"`, `template_name` y `template`. Eso solo significa que **Graph aceptó** el envío (`SENT` + `wamid`). La entrega al celular llega después por webhook.
 
-Errores útiles:
+Si Meta no puede cobrar la plantilla (moneda, método de pago, saldo), el mensaje pasa a `FAILED` (~5–15 s) vía Realtime:
+
+| Campo | Uso |
+|-------|-----|
+| `whatsapp_delivery_status` | `FAILED` |
+| `whatsapp_delivery_error_code` | Código Meta (`131042` = facturación) |
+| `whatsapp_delivery_error_kind` | `billing_currency` \| `billing_payment_method` \| `billing_insufficient_funds` \| `billing` \| `reengagement_window` \| `undeliverable` \| `rate_limited` \| `other` |
+| `whatsapp_delivery_error_message` | Texto en español para toast/tooltip |
+
+No esperes un 4xx en el POST: Graph responde 201 y el fallo de pago es asíncrono.
+
+Errores útiles del POST inmediato:
 
 | HTTP | `error` | Cuándo |
 |------|---------|--------|

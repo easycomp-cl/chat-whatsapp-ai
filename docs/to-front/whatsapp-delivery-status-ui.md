@@ -25,8 +25,11 @@ Comparar **case-insensitive** (`sent` === `SENT`).
 
 | Campo API / vista | Uso UI |
 |-------------------|--------|
-| `whatsapp_delivery_error_code` | Código Meta (ej. `131026`) |
-| `whatsapp_delivery_error_message` | Texto para tooltip en `FAILED` |
+| `whatsapp_delivery_error_code` | Código Meta (ej. `131026`, `131042`) |
+| `whatsapp_delivery_error_kind` | `billing_currency`, `billing_payment_method`, `billing_insufficient_funds`, `billing`, `reengagement_window`, `undeliverable`, `rate_limited`, `other` |
+| `whatsapp_delivery_error_message` | Texto en español para tooltip o toast en `FAILED` |
+
+Plantillas: Graph puede devolver `201`/`SENT` y ~8 s después `FAILED` (pago/moneda). Escuchar Realtime `UPDATE` también en `FAILED`, no solo `DELIVERED`/`READ`.
 
 ---
 
@@ -69,7 +72,7 @@ Al crear mensaje desde dashboard:
 
 1. Insertar optimista con `whatsapp_delivery_status: 'PENDING'`.
 2. Tras `201` del POST, reemplazar con respuesta real (`SENT` + `external_id`).
-3. Esperar `UPDATE` Realtime para `DELIVERED` / `READ`.
+3. Esperar `UPDATE` Realtime para `DELIVERED` / `READ` / `FAILED`.
 
 ---
 

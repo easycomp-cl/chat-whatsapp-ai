@@ -1,5 +1,9 @@
 import type { ContentType, Message, SenderType, WhatsappDeliveryStatus } from "@prisma/client";
 import { readInboundMediaIngestState } from "../../utils/inbound-media-ingest-state.js";
+import {
+  classifyWhatsappDeliveryError,
+  type WhatsappDeliveryErrorKind
+} from "../../utils/whatsapp-delivery-error.js";
 import { readStoredOutboundInteractive } from "../../utils/whatsapp-interactive.js";
 import type { OutboundInteractiveMessage } from "../../utils/whatsapp-interactive.js";
 
@@ -36,6 +40,7 @@ export type SerializedMessage = {
   whatsapp_delivery_status: WhatsappDeliveryStatus | null;
   whatsapp_delivery_error_code: number | null;
   whatsapp_delivery_error_message: string | null;
+  whatsapp_delivery_error_kind: WhatsappDeliveryErrorKind | null;
   media_ingest_failed: boolean;
   media_ingest_error: string | null;
   interactive: OutboundInteractiveMessage | null;
@@ -74,6 +79,10 @@ export function serializeMessage(message: Message): SerializedMessage {
     whatsapp_delivery_status: message.whatsappDeliveryStatus,
     whatsapp_delivery_error_code: message.whatsappDeliveryErrorCode,
     whatsapp_delivery_error_message: message.whatsappDeliveryErrorMessage,
+    whatsapp_delivery_error_kind: classifyWhatsappDeliveryError(
+      message.whatsappDeliveryErrorCode,
+      message.whatsappDeliveryErrorMessage ?? ""
+    ),
     media_ingest_failed: mediaIngest.failed,
     media_ingest_error: mediaIngest.error,
     interactive: readStoredOutboundInteractive(message.rawPayloadJson),

@@ -111,6 +111,7 @@ export function buildMediaMessageResponse(message: Parameters<typeof serializeMe
     whatsapp_delivery_status: serialized.whatsapp_delivery_status,
     whatsapp_delivery_error_code: serialized.whatsapp_delivery_error_code,
     whatsapp_delivery_error_message: serialized.whatsapp_delivery_error_message,
+    whatsapp_delivery_error_kind: serialized.whatsapp_delivery_error_kind,
     media_ingest_failed: serialized.media_ingest_failed,
     media_ingest_error: serialized.media_ingest_error,
     interactive: serialized.interactive,

@@ -30,8 +30,14 @@ export function shouldUpgradeWhatsappDeliveryStatus(
   next: WhatsappDeliveryStatus
 ): boolean {
   if (!current) return true;
+  // Graph suele devolver wamid (SENT) y recién después el webhook `failed`
+  // (pago, moneda, 24 h, etc.). Si no aplicamos FAILED sobre SENT, el panel
+  // queda en “enviado” y el contacto nunca recibe el mensaje.
   if (next === WhatsappDeliveryStatus.FAILED) {
-    return current === WhatsappDeliveryStatus.PENDING;
+    return (
+      current === WhatsappDeliveryStatus.PENDING ||
+      current === WhatsappDeliveryStatus.SENT
+    );
   }
   if (current === WhatsappDeliveryStatus.FAILED) {
     return false;
