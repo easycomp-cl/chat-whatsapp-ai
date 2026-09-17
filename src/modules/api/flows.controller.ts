@@ -13,7 +13,7 @@ const createFlowSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   created_by_admin_id: adminIdSchema,
-  template: z.enum(["default", "wood_quote"]).optional()
+  template: z.enum(["default", "wood_quote", "product_quote"]).optional()
 });
 
 const patchFlowSchema = z.object({

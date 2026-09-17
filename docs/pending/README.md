@@ -20,6 +20,8 @@ Documentación para implementar en el futuro la conexión self-service de **What
 | [flows-supabase-storage.md](./flows-supabase-storage.md) | **Pendiente deploy** — bucket `flow-files` |
 | [whatsapp-media-ui.md](../to-front/whatsapp-media-ui.md) | **Backend listo** — imágenes/PDF en chat; spec para UI |
 | [backend-whatsapp-templates-pack.md](./backend-whatsapp-templates-pack.md) | **Backend listo** — pack plantillas WABA + envío; UI Mis plantillas pendiente |
+| [backend-cotizacion-productos-pdf.md](./backend-cotizacion-productos-pdf.md) | **Backend listo** — preview + PDF de cotización (asesor y bot); plantilla `product_quote` |
+| [demo-easycomp-repuestos-checklist.md](./demo-easycomp-repuestos-checklist.md) | **Ops demo** — onboarding, catálogo 40 SKUs, conocimiento, guion; quién hace qué |
 | [easycomp-chat-bot-manager-especificacion-modulo-flujos.md](./easycomp-chat-bot-manager-especificacion-modulo-flujos.md) | Spec completa (referencia) |
 | [migracion-dominio-chatbotmanager.md](./migracion-dominio-chatbotmanager.md) | **Ops** — DNS, ACM, Meta, Vercel para `chatbotmanager.easycomp.cl` |
 

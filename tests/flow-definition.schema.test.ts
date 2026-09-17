@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createWoodQuoteFlowGraph } from "../src/modules/flows/domain/flow-defaults.js";
+import { createProductQuoteFlowGraph, createWoodQuoteFlowGraph } from "../src/modules/flows/domain/flow-defaults.js";
 import { parseFlowDefinitionGraph } from "../src/modules/flows/domain/flow-definition.schema.js";
 import { flowSimulatorService } from "../src/modules/flows/flow-simulator.service.js";
 
@@ -9,6 +9,13 @@ describe("flow-definition.schema", () => {
     expect(() => parseFlowDefinitionGraph(graph)).not.toThrow();
     expect(graph.fields.length).toBeGreaterThan(5);
     expect(graph.nodes.some((n) => n.type === "review")).toBe(true);
+  });
+
+  it("valida la plantilla product_quote", () => {
+    const graph = createProductQuoteFlowGraph("Cotización repuestos");
+    expect(() => parseFlowDefinitionGraph(graph)).not.toThrow();
+    expect(graph.trigger.intent).toBe("request_product_quote");
+    expect(graph.nodes.some((n) => n.config.action === "generate_product_quote")).toBe(true);
   });
 
   it("rechaza grafo sin nodo start", () => {

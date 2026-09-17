@@ -1,4 +1,4 @@
-import { Prisma, type FlowRunStatus } from "@prisma/client";
+import { Prisma, ProductQuoteCreatedBy, type FlowRunStatus } from "@prisma/client";
 import { logger } from "../../lib/logger.js";
 import { prisma } from "../../lib/prisma.js";
 import { handoffService } from "../runtime/handoff.service.js";
@@ -6,6 +6,7 @@ import type { IncomingMediaAttachment } from "../../types/whatsapp.js";
 import type { FlowDefinitionGraph, FlowFieldDefinition, FlowNode } from "./domain/flow-definition.schema.js";
 import { parseFlowDefinitionGraph } from "./domain/flow-definition.schema.js";
 import {
+  getNestedValue,
   getNode,
   getOutgoingEdges,
   getStartNode,
@@ -30,6 +31,7 @@ import {
   applyQuoteFlatUpdates,
   flowQuoteService
 } from "./flow-quote.service.js";
+import { productQuoteService } from "../quotes/product-quote.service.js";
 import { flowFileService } from "./flow-file.service.js";
 import { flowWebhookDeliveryService } from "./flow-webhook-delivery.service.js";
 import type { OutboundInteractiveMessage } from "../../utils/whatsapp-interactive.js";
@@ -794,6 +796,52 @@ export class FlowEngineService {
             ctx.replies.push({
               text: `Cotización preliminar: ${quote.pricing.total.toLocaleString("es-CL")} ${quote.pricing.currency} (${quote.product.name}, ${quote.items[0]?.quantity ?? 1} un.).`,
               aiGenerated: false
+            });
+          }
+        }
+
+        if (node.config.action === "generate_product_quote") {
+          const methodRaw = String(getNestedValue(ctx.variables.flat, "delivery.method") ?? "");
+          const deliveryMethod =
+            methodRaw === "pickup" || methodRaw === "retiro"
+              ? "pickup"
+              : methodRaw === "delivery" || methodRaw === "despacho"
+                ? "delivery"
+                : undefined;
+          const commune = getNestedValue(ctx.variables.flat, "delivery.commune");
+          const customerNote = getNestedValue(ctx.variables.flat, "customer.note");
+
+          try {
+            const sent = await productQuoteService.trySendFromConversationText({
+              conversationId: ctx.conversationId,
+              incomingText: "cotizar",
+              createdBy: ProductQuoteCreatedBy.BOT,
+              requireQuoteIntent: false,
+              ...(deliveryMethod ? { deliveryMethod } : {}),
+              ...(typeof commune === "string" && commune.trim() ? { commune: commune.trim() } : {}),
+              ...(typeof customerNote === "string" && customerNote.trim()
+                ? { customerNote: customerNote.trim() }
+                : {})
+            });
+
+            if (sent.sent && sent.preview) {
+              ctx.variables = upsertSlot(ctx.variables, "quote.total", sent.preview.total, {
+                status: "captured",
+                sourceType: "integration"
+              });
+              ctx.variables = upsertSlot(ctx.variables, "quote.number", sent.preview.quote_number, {
+                status: "captured",
+                sourceType: "integration"
+              });
+            } else {
+              ctx.replies.push({
+                text: "Para armar la cotización necesito SKU o el producto (por ejemplo aceite 10W-40 4 L, luces H4, escobilla 22\"). ¿Cuáles te cotizo?"
+              });
+            }
+          } catch (error) {
+            logger.warn({ err: error, runId: ctx.runId }, "generate_product_quote failed");
+            ctx.replies.push({
+              text: "No pude generar el PDF ahora. Dime los SKU y cantidades y lo intentamos de nuevo."
             });
           }
         }

@@ -70,8 +70,7 @@ export class OpenAIService {
   shouldHandoff(reply: string): boolean {
     const normalized = reply.toLowerCase();
     return (
-      normalized.includes("derivar") ||
-      normalized.includes("asesor") ||
+      /\b(te (voy a )?deriv|te conecto con un asesor|pasar con un asesor)\b/.test(normalized) ||
       normalized.includes("no tengo esa información") ||
       normalized.includes("no tengo suficiente")
     );

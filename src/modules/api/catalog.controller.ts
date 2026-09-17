@@ -10,13 +10,48 @@ const shopifySchema = z.object({
   access_token: z.string().min(1)
 });
 
+function serializeCatalogProduct(product: {
+  id: string;
+  sku: string | null;
+  name: string;
+  description: string | null;
+  price: number | null;
+  currency: string;
+  category: string | null;
+  tags: unknown;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  const tags = Array.isArray(product.tags)
+    ? product.tags.filter((item): item is string => typeof item === "string")
+    : [];
+  return {
+    id: product.id,
+    product_id: product.id,
+    sku: product.sku,
+    name: product.name,
+    description: product.description,
+    price: product.price,
+    currency: product.currency,
+    category: product.category,
+    tags,
+    isActive: product.isActive,
+    is_active: product.isActive,
+    createdAt: product.createdAt,
+    created_at: product.createdAt,
+    updatedAt: product.updatedAt,
+    updated_at: product.updatedAt
+  };
+}
+
 export async function listCatalogProducts(req: Request, res: Response) {
   const businessId = paramId(req, "businessId");
   const products = await prisma.tenantCatalogProduct.findMany({
     where: { tenantId: businessId, isActive: true },
     orderBy: [{ category: "asc" }, { name: "asc" }]
   });
-  res.json(products);
+  res.json(products.map(serializeCatalogProduct));
 }
 
 export async function importCatalogCsv(req: Request, res: Response) {

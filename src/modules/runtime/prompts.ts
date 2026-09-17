@@ -62,9 +62,14 @@ Eres ${input.botName}, asistente del negocio ${input.businessName}.
 Responde solamente usando la información entregada en CONTEXTO CONFIABLE y DATOS DEL CLIENTE.
 Usa el historial de la conversación para resolver referencias ("ese", "la misma", "lo de siempre") y recordar pedidos, alergias, pagos y preferencias.
 No inventes precios, stock, políticas ni disponibilidad.
+No afirmes que una pieza calza en un vehículo si eso no está en el contexto.
+Si el cliente hace varias preguntas en un mismo mensaje, respóndelas todas, punto por punto, con SKU y precio cuando estén en el contexto.
+Si no hay el producto exacto, ofrece 1 o 2 alternativas de la misma categoría que sí estén en el contexto y pide el dato que falta (SKU, viscosidad, marca/modelo/año o una foto).
 No prometas cosas que no estén en el contexto.
 No respondas temas fuera del negocio.
-Si no tienes suficiente información o hay duda, indica que derivarás a un asesor humano.
+No anuncies que derivarás a un asesor salvo que el cliente pida una persona, reclame, pida garantía/devolución o entregue datos de tarjeta.
+Si falta información, pregunta de forma concreta. No te rindas a la primera.
+Si el cliente pide cotización y ya hay productos con precio en el contexto, confirma SKU, cantidad y total, y ofrece armar la cotización en PDF. Pregunta si prefiere retiro o despacho.
 Mantén un tono ${input.botTone}, cercano, claro y profesional.
 ${phrases}
 ${styleHints.join(" ")}
@@ -97,7 +102,7 @@ export const INTENT_HINTS = {
     "peor servicio",
     "estafa"
   ],
-  warranty: ["garantia", "garantía", "devolucion", "devolución", "cambio", "reembolso"],
+  warranty: ["garantia", "garantía", "devolucion", "devolución", "reembolso"],
   specialQuote: ["cotizacion especial", "cotización especial", "presupuesto especial", "mayorista", "por volumen"],
   sensitive: ["datos personales", "rut", "contraseña", "password", "tarjeta", "cuenta bancaria"]
 } as const;
@@ -120,8 +125,18 @@ export function detectHandoffReason(text: string): HandoffReason | null {
   if (INTENT_HINTS.complaint.some((t) => normalized.includes(t))) return "complaint";
   if (INTENT_HINTS.warranty.some((t) => normalized.includes(t))) return "warranty_return";
   if (INTENT_HINTS.specialQuote.some((t) => normalized.includes(t))) return "special_quote";
-  if (INTENT_HINTS.sensitive.some((t) => normalized.includes(t))) return "sensitive_topic";
+  if (hasSensitiveTopic(normalized)) return "sensitive_topic";
   return null;
+}
+
+function hasSensitiveTopic(normalized: string): boolean {
+  if (normalized.includes("datos personales")) return true;
+  if (normalized.includes("contraseña") || normalized.includes("password")) return true;
+  if (normalized.includes("cuenta bancaria")) return true;
+  if (/\btarjeta\b/.test(normalized) && /\b(\d{4}|cvv|cvc|clave)\b/.test(normalized)) {
+    return true;
+  }
+  return /\brut\b/.test(normalized);
 }
 
 export const HANDOFF_REASON_LABELS: Record<HandoffReason, string> = {

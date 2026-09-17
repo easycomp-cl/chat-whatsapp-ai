@@ -45,6 +45,7 @@ import {
   isAnaphoricFollowUp
 } from "./conversation-history.js";
 import { formatCustomerMemory } from "./customer-memory.js";
+import { productQuoteService } from "../quotes/product-quote.service.js";
 
 const BOT_SETUP_MESSAGE =
   "Hola. Estamos configurando nuestro asistente. Te responderemos muy pronto.";
@@ -182,6 +183,24 @@ export class ResponsePipelineService {
       const reply = buildConversationalReply(conversationalIntent, conversationalContext);
       const outboundMessageId = await this.persistBotReply(input, reply, false);
       return { reply, outboundMessageId, mode: "bot" };
+    }
+
+    try {
+      const quoteSend = await productQuoteService.trySendFromConversationText({
+        conversationId: input.conversation.id,
+        incomingText: input.incomingText
+      });
+      if (quoteSend.sent) {
+        return {
+          mode: "bot",
+          ...(quoteSend.messageId ? { outboundMessageId: quoteSend.messageId } : {})
+        };
+      }
+    } catch (error) {
+      logger.warn(
+        { err: error, conversationId: input.conversation.id },
+        "Product quote auto-send skipped"
+      );
     }
 
     const faqMatch = await faqEngine.findMatch(input.tenant.id, input.incomingText);

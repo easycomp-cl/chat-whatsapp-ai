@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { escalationDetectorService } from "../src/modules/runtime/escalation-detector.service.js";
 
 describe("EscalationDetectorService", () => {
+  it("does not hand off after a single soft fallback", () => {
+    const result = escalationDetectorService.evaluatePreResponse({
+      incomingText: "y el filtro de aceite?",
+      recentBotMessages: ["No tengo esa información confirmada todavía."],
+      fallbackMessage: "No tengo esa información confirmada todavía."
+    });
+    expect(result).toEqual({ action: "continue" });
+  });
+
   it("hands off on explicit human request", () => {
     const result = escalationDetectorService.evaluatePreResponse({
       incomingText: "quiero hablar con un asesor",
@@ -46,13 +55,34 @@ describe("EscalationDetectorService", () => {
     expect(result).toEqual({ action: "continue" });
   });
 
-  it("hands off on second consecutive soft fallback", () => {
+  it("allows a couple of consecutive soft fallbacks before handoff", () => {
     const result = escalationDetectorService.evaluateLowConfidence({
       incomingText: "tienen stock de algo raro?",
       ragScore: 0.2,
       confidenceThreshold: 0.7,
       handoffOnLowConfidence: false,
-      recentBotMessages: ["No tengo esa información confirmada todavía."],
+      recentBotMessages: [
+        "No tengo esa información confirmada todavía.",
+        "No tengo esa información confirmada todavía."
+      ],
+      fallbackMessage: "No tengo esa información confirmada todavía.",
+      hybridGreetingMessage: false,
+      greetingLike: false
+    });
+    expect(result).toEqual({ action: "continue" });
+  });
+
+  it("hands off after three consecutive soft fallbacks", () => {
+    const result = escalationDetectorService.evaluateLowConfidence({
+      incomingText: "tienen stock de algo raro?",
+      ragScore: 0.2,
+      confidenceThreshold: 0.7,
+      handoffOnLowConfidence: false,
+      recentBotMessages: [
+        "No tengo esa información confirmada todavía.",
+        "No tengo esa información confirmada todavía.",
+        "No tengo esa información confirmada todavía."
+      ],
       fallbackMessage: "No tengo esa información confirmada todavía.",
       hybridGreetingMessage: false,
       greetingLike: false

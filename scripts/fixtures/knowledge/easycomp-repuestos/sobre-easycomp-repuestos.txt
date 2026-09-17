@@ -1,0 +1,37 @@
+EASYCOMP REPUESTOS — PERFIL DEL NEGOCIO (DEMO)
+
+Somos EasyComp Repuestos, un local de mantención automotriz en Santiago.
+Vendemos repuestos de uso frecuente para seguir en ruta: aceites de motor, filtros,
+escobillas / gomas, ampolletas, pastillas de freno y bujías.
+
+Esta tienda es de demostración. Precios en pesos chilenos con IVA incluido.
+No publicamos stock en tiempo real. No confirmamos que una pieza “calza” en un
+vehículo si el cliente no entrega marca, modelo, año y, cuando haga falta, código OEM
+o VIN. Nunca inventamos compatibilidad.
+
+Horario
+Lunes a viernes: 9:00 a 18:30.
+Sábados: 9:00 a 14:00.
+Domingos y festivos: cerrado.
+
+Local (retiro)
+Av. Providencia 1240, local 3, Providencia, Santiago.
+Referencia: entre metro Pedro de Valdivia y Los Leones.
+
+Medios de pago
+Transferencia, efectivo, tarjeta en local y link de pago por WhatsApp.
+
+Cómo cotizar
+1. Identifica el SKU EasyComp (ECP-…) o el producto (aceite 10W-40 4 L, H4, escobilla 22", etc.).
+2. Indica cantidad y unidad de venta (bidón, unidad o juego de un eje).
+3. Si buscas por auto, indica marca, modelo, año y motor. Sin esos datos ofrecemos
+   opciones de la misma categoría y pedimos confirmación; no decimos “es para tu auto”.
+
+Unidades de venta
+- Aceites: por bidón (1 L o 4 L).
+- Filtros, escobillas, ampolletas y bujías: por unidad.
+- Pastillas: por juego para un eje.
+
+Si el cliente pregunta varias cosas en un mismo mensaje, responder punto por punto
+con SKU, precio y unidad. Si falta un dato, preguntarlo al final, sin derivar a un
+humano a la primera.

@@ -115,6 +115,16 @@ enum CatalogProductSource {
   SHOPIFY
 }
 
+enum ProductQuoteCreatedBy {
+  HUMAN
+  BOT
+}
+
+enum ProductQuoteStatus {
+  ISSUED
+  SENT
+}
+
 enum IntegrationProvider {
   SHOPIFY
   FLOW_WEBHOOK
@@ -263,6 +273,7 @@ model Tenant {
   whatsappTemplates          WhatsappTemplate[]
   adminPhoneVerifications    AdminPhoneVerification[]
   paymentLinks               PaymentLink[]
+  productQuotes              ProductQuote[]
 }
 
 model TenantChannel {
@@ -522,6 +533,7 @@ model Conversation {
   flowRuns           FlowRun[]           @relation("ConversationFlowRuns")
   flowFiles          FlowFile[]
   usageEvents        UsageEvent[]
+  productQuotes      ProductQuote[]
 
   @@index([tenantId, lastMessageAt(sort: Desc)])
 }
@@ -628,6 +640,34 @@ model TenantCatalogProduct {
 
   @@index([tenantId, isActive])
   @@unique([tenantId, externalId])
+}
+
+model ProductQuote {
+  id               String                @id @default(cuid())
+  tenantId         String
+  conversationId   String
+  quoteNumber      String
+  createdBy        ProductQuoteCreatedBy
+  status           ProductQuoteStatus    @default(ISSUED)
+  customerNote     String?
+  deliveryMethod   String?
+  commune          String?
+  currency         String                @default("CLP")
+  productsSubtotal Float
+  deliveryPrice    Float
+  total            Float
+  linesJson        Json
+  notesJson        Json                  @default("[]")
+  pdfStoragePath   String?
+  messageId        String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  tenant           Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversation     Conversation          @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, quoteNumber])
+  @@index([tenantId, createdAt])
+  @@index([conversationId, createdAt])
 }
 
 model TenantDeliveryRegion {

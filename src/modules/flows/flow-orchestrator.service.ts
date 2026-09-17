@@ -34,6 +34,13 @@ const INTENT_KEYWORDS: Record<string, string[]> = {
     "tabla",
     "tablas",
     "quote"
+  ],
+  request_product_quote: [
+    "cotizar",
+    "cotización",
+    "cotizacion",
+    "presupuesto",
+    "quote"
   ]
 };
 

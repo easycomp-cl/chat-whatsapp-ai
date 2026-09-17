@@ -33,6 +33,11 @@ import {
   sendConversationMediaMessage,
   conversationMediaUploadMiddleware
 } from "./messages.controller.js";
+import {
+  downloadConversationQuotePdf,
+  previewConversationQuote,
+  sendConversationQuote
+} from "./quotes.controller.js";
 import { getMessageMediaUrl, streamMessageMediaFile } from "./message-media.controller.js";
 import { getCustomerProfile, patchCustomerProfileHandler } from "./customers.controller.js";
 import {
@@ -202,6 +207,9 @@ export function createApiRouter() {
     conversationMediaUploadMiddleware,
     sendConversationMediaMessage
   );
+  router.post("/conversations/:id/quotes/preview", previewConversationQuote);
+  router.post("/conversations/:id/quotes/pdf", downloadConversationQuotePdf);
+  router.post("/conversations/:id/quotes/send", sendConversationQuote);
   router.get("/messages/:id/media-url", getMessageMediaUrl);
   router.get("/messages/:id/media/file", streamMessageMediaFile);
   router.post("/messages/:id/resend", resendOutboundMessage);

@@ -174,3 +174,98 @@ export function createWoodQuoteFlowGraph(name: string): FlowDefinitionGraph {
     outputSchemas: [{ eventType: "quote.confirmed", schemaVersion: "1.0" }]
   };
 }
+
+/** Cotización de productos de catálogo (repuestos, retail). No usar wood_quote. */
+export function createProductQuoteFlowGraph(name: string): FlowDefinitionGraph {
+  return {
+    name,
+    version: 1,
+    trigger: {
+      type: "ai_intent",
+      channel: "whatsapp",
+      intent: "request_product_quote",
+      keywords: ["cotizar", "cotización", "cotizacion", "presupuesto"],
+      priority: 90
+    },
+    context: {
+      contextWindow: {
+        maxMessages: 30,
+        maxAgeMinutes: 30,
+        includeContactProfile: true
+      }
+    },
+    fields: [
+      { key: "customer.name", label: "Nombre", type: "text", required: false },
+      { key: "customer.note", label: "Vehículo u observación", type: "text", required: false },
+      { key: "delivery.method", label: "Método de entrega", type: "option", required: true, options: ["pickup", "delivery"] },
+      { key: "delivery.commune", label: "Comuna", type: "text", required: false }
+    ],
+    nodes: [
+      { id: "start", type: "start", label: "Inicio", config: {} },
+      {
+        id: "analyze-conversation",
+        type: "collect_fields",
+        label: "Analizar conversación",
+        config: { strategy: "extract_from_context", contextWindow: true }
+      },
+      {
+        id: "collect-missing",
+        type: "collect_fields",
+        label: "Solicitar datos faltantes",
+        config: { strategy: "ask_missing_only" }
+      },
+      {
+        id: "delivery-choice",
+        type: "choice",
+        label: "¿Retiro o despacho?",
+        config: {
+          field: "delivery.method",
+          options: [
+            { value: "pickup", label: "Retiro en local" },
+            { value: "delivery", label: "Despacho" }
+          ]
+        }
+      },
+      {
+        id: "collect-commune",
+        type: "collect_fields",
+        label: "Comuna de despacho",
+        config: { fields: ["delivery.commune"] }
+      },
+      {
+        id: "generate-quote",
+        type: "action",
+        label: "Generar cotización PDF",
+        config: { action: "generate_product_quote" }
+      },
+      {
+        id: "confirm-summary",
+        type: "confirmation",
+        label: "Confirmar resumen",
+        config: { summaryFields: ["delivery", "quote"] }
+      },
+      { id: "end", type: "end", label: "Fin", config: {} }
+    ],
+    edges: [
+      { id: "pq1", source: "start", target: "analyze-conversation" },
+      { id: "pq2", source: "analyze-conversation", target: "collect-missing" },
+      { id: "pq3", source: "collect-missing", target: "delivery-choice" },
+      {
+        id: "pq4",
+        source: "delivery-choice",
+        target: "collect-commune",
+        condition: { field: "delivery.method", operator: "equals", value: "delivery" }
+      },
+      {
+        id: "pq5",
+        source: "delivery-choice",
+        target: "generate-quote",
+        condition: { field: "delivery.method", operator: "equals", value: "pickup" }
+      },
+      { id: "pq6", source: "collect-commune", target: "generate-quote" },
+      { id: "pq7", source: "generate-quote", target: "confirm-summary" },
+      { id: "pq8", source: "confirm-summary", target: "end" }
+    ],
+    outputSchemas: []
+  };
+}

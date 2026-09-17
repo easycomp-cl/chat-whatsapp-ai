@@ -1,0 +1,76 @@
+GUÍA DE CONSULTA DEL CATÁLOGO DEMO — EASYCOMP REPUESTOS
+
+40 SKUs. 6 categorías. Precios de demostración, IVA incluido, sin despacho.
+
+Cómo responder
+- Si el cliente nombra un SKU (ECP-ACE-006, ECP-AMP-001, etc.), usa ese producto y su precio.
+- Si nombra viscosidad, base de ampolleta o pulgadas de escobilla, ofrece las variantes de esa familia.
+- Si nombra un auto (Hilux, Spark, Accent, etc.) y no da OEM: ofrece la categoría pedida
+  (aceite, filtro, luces, gomas) y pide manual / código. Nunca afirmes “esta pieza es de ese modelo”.
+- Si no hay el exacto, ofrece 1 o 2 alternativas de la misma categoría con precio.
+  Ejemplo: no hay 15W-40 → ofrecer 10W-40 1 L y 4 L y explicar que debe coincidir con el manual.
+- No derives a un humano por una duda de catálogo. Pregunta el dato que falta.
+- Deriva a humano solo si el cliente lo pide, o si es reclamo, garantía, mayorista o dato de tarjeta.
+
+ACEITES (LIQUI MOLY Molygen New Generation)
+ECP-ACE-001  5W-30  1 L   $14.990 / bidón   Ref. 9047
+ECP-ACE-002  5W-30  4 L   $51.990 / bidón   Ref. 9089
+ECP-ACE-003  5W-40  1 L   $14.990 / bidón   Ref. 8576
+ECP-ACE-004  5W-40  4 L   $53.990 / bidón   Ref. 8578
+ECP-ACE-005  10W-40 1 L   $11.990 / bidón   Ref. 9955
+ECP-ACE-006  10W-40 4 L   $41.990 / bidón   Ref. 8538
+La viscosidad sola no define compatibilidad. Preguntar qué indica el manual.
+
+FILTROS (MANN-FILTER)
+Aceite:
+ECP-FIL-001  W 68/3     rosca 3/4-16 UNF     $6.990
+ECP-FIL-002  W 610/3    rosca M20 x 1,5      $7.990
+ECP-FIL-003  W 811/80   rosca M20 x 1,5      $6.990
+ECP-FIL-004  W 712/95   rosca 3/4-16 UNF-1B  $10.990
+Aire motor:
+ECP-FIL-005  C 14 130   cilíndrico   $16.990
+ECP-FIL-006  C 27 009   panel        $14.990
+Cabina / polen:
+ECP-FIL-007  CU 1828    $11.990
+ECP-FIL-008  CU 1919    $12.990
+
+ESCOBILLAS / GOMAS (BOSCH Aerotwin, completa, brazo gancho)
+ECP-ESC-001  16" / 400 mm  AR16U  $14.990
+ECP-ESC-002  18" / 450 mm  AR18U  $15.990
+ECP-ESC-003  19" / 475 mm  AR19U  $16.490
+ECP-ESC-004  20" / 500 mm  AR20U  $16.990
+ECP-ESC-005  21" / 530 mm  AR21U  $17.990
+ECP-ESC-006  22" / 550 mm  AR22U  $18.990
+ECP-ESC-007  24" / 600 mm  AR24U  $20.990
+ECP-ESC-008  26" / 650 mm  AR26U  $22.990
+Si dicen “gomas” o “limpiaparabrisas”, son estas escobillas. Pedir largo en pulgadas o mm.
+
+AMPOLLETAS / LUCES (OSRAM Original Line, 12 V, por unidad)
+ECP-AMP-001  H4   60/55 W  64193  $4.490
+ECP-AMP-002  H7   55 W     64210  $5.490
+ECP-AMP-003  H1   55 W     64150  $3.990
+ECP-AMP-004  H3   55 W     64151  $3.990
+ECP-AMP-005  HB3  60 W     9005   $7.990
+ECP-AMP-006  HB4  51 W     9006   $7.990
+ECP-AMP-007  W5W  5 W      2825   $1.190
+ECP-AMP-008  P21W 21 W     7506   $1.590
+
+PASTILLAS (BREMBO Prime, juego de 1 eje)
+ECP-FRE-001  P 83 106  delanteras Akebono  $49.990
+ECP-FRE-002  P 83 082  delanteras Akebono  $45.990
+ECP-FRE-003  P 30 021  traseras Mando      $39.990
+ECP-FRE-004  P 30 056  delanteras Mando    $48.990
+ECP-FRE-005  P 59 051  delanteras Bosch    $37.990
+ECP-FRE-006  P 85 020  Lucas (eje según auto) $38.990
+No elegir pastillas solo por medidas. Pedir marca, modelo, año y si es eje delantero o trasero.
+
+BUJÍAS (NGK, precio por unidad)
+ECP-BUJ-001  BKR5E-11    estándar grado 5   $4.990
+ECP-BUJ-002  BKR6E-11    estándar grado 6   $4.990
+ECP-BUJ-003  BKR5EIX-11  Iridium IX grado 5 $14.990
+ECP-BUJ-004  BKR6EIX-11  Iridium IX grado 6 $14.990
+Ejemplo de juego: 4 x ECP-BUJ-001 = $19.960. Grado 5 y 6 no son intercambiables.
+
+Cierre comercial
+Si el cliente acepta productos, ofrecer cotización formal (PDF) y luego retiro o envío.
+El despacho no está en el precio de catálogo.

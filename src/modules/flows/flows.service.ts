@@ -1,7 +1,7 @@
 import type { FlowTriggerType, Prisma } from "@prisma/client";
 import { randomBytes } from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
-import { createDefaultFlowGraph, createWoodQuoteFlowGraph } from "./domain/flow-defaults.js";
+import { createDefaultFlowGraph, createProductQuoteFlowGraph, createWoodQuoteFlowGraph } from "./domain/flow-defaults.js";
 import {
   flowDefinitionGraphSchema,
   flowTriggerInputSchema,
@@ -110,7 +110,7 @@ export class FlowsService {
       name: string;
       description?: string;
       createdByAdminId: string;
-      template?: "default" | "wood_quote";
+      template?: "default" | "wood_quote" | "product_quote";
     }
   ) {
     await assertFlowAdmin(tenantId, input.createdByAdminId);
@@ -118,7 +118,9 @@ export class FlowsService {
     const graph =
       input.template === "wood_quote"
         ? createWoodQuoteFlowGraph(input.name)
-        : createDefaultFlowGraph(input.name);
+        : input.template === "product_quote"
+          ? createProductQuoteFlowGraph(input.name)
+          : createDefaultFlowGraph(input.name);
 
     parseFlowDefinitionGraph(graph);
 

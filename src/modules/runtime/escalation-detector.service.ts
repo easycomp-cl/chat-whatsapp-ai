@@ -28,7 +28,7 @@ export type EscalationLowConfidenceInput = {
   maxSoftFallbacksBeforeHandoff?: number;
 };
 
-const DEFAULT_MAX_SOFT_FALLBACKS = 1;
+const DEFAULT_MAX_SOFT_FALLBACKS = 3;
 
 export class EscalationDetectorService {
   evaluatePreResponse(input: EscalationPreInput): EscalationAction {
