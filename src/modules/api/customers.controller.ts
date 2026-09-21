@@ -8,6 +8,8 @@ import {
   serializeCustomerProfile,
   type CustomerProfilePatch
 } from "../customers/customer-profile.service.js";
+import { systemEventService } from "../conversations/system-event.service.js";
+import { buildSystemEvent, describeProfileEventFields } from "../conversations/system-event-copy.js";
 
 const invoiceTypeSchema = z.enum(["RECEIPT", "INVOICE", "NONE"]).nullable();
 const billingSameSchema = z.enum(["NONE", "DELIVERY_1", "DELIVERY_2"]).nullable();
@@ -37,7 +39,8 @@ const patchCustomerSchema = z
     billing_notes: z.string().nullable().optional(),
     billing_same_as_delivery: billingSameSchema.optional(),
     profile_metadata: z.record(z.unknown()).nullable().optional(),
-    profile_updated_by: z.string().optional()
+    profile_updated_by: z.string().optional(),
+    conversation_id: z.string().min(1).optional()
   })
   .strict();
 
@@ -107,11 +110,35 @@ export async function patchCustomerProfileHandler(req: Request, res: Response) {
     if (body.profile_metadata !== undefined) patch.profile_metadata = body.profile_metadata;
     if (body.profile_updated_by !== undefined) patch.profile_updated_by = body.profile_updated_by;
 
+    const changedFields = Object.keys(body).filter(
+      (key) => key !== "profile_updated_by" && key !== "conversation_id"
+    );
+
     const updated = await patchCustomerProfile({
       tenantId: businessId,
       customerId,
       patch
     });
+
+    if (changedFields.length > 0 && (body.profile_updated_by ?? "BUSINESS_ADMIN") !== "BOT") {
+      const conversation = await systemEventService.resolveConversationForCustomer({
+        tenantId: businessId,
+        customerId,
+        ...(body.conversation_id ? { conversationId: body.conversation_id } : {})
+      });
+      if (conversation) {
+        await systemEventService.appendForConversation(
+          conversation.id,
+          buildSystemEvent(
+            "profile_updated",
+            "HUMAN",
+            describeProfileEventFields(changedFields),
+            { fields: changedFields, source: "inbox_profile_patch" }
+          )
+        );
+      }
+    }
+
     const tenantConfigJson = await loadTenantConfig(businessId);
     setNoStore(res);
     res.json(await serializeCustomerProfile(updated, tenantConfigJson));

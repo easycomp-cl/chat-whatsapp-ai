@@ -4,7 +4,8 @@
 **Backend PDF:** [backend-cotizacion-productos-pdf.md](../pending/backend-cotizacion-productos-pdf.md) *(endpoints listos)*  
 **Checklist demo / onboarding:** [demo-easycomp-repuestos-checklist.md](../pending/demo-easycomp-repuestos-checklist.md)  
 **Media ya listo:** [whatsapp-media-ui.md](./whatsapp-media-ui.md) — `POST /conversations/:id/messages/media`  
-**Catálogo ya listo:** `GET /businesses/:businessId/catalog/products`
+**Catálogo ya listo:** `GET /businesses/:businessId/catalog/products`  
+**Vehículo / globos azules:** [chat-eventos-sistema-y-vehiculos-ui.md](./chat-eventos-sistema-y-vehiculos-ui.md) — filtrar catálogo por patente o marca/modelo/año
 
 ---
 

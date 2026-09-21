@@ -8,6 +8,7 @@ import { usageEventsService, USAGE_EVENT_TYPES } from "../metrics/usage-events.s
 import { parseTenantKnowledgeConfig } from "../tenants/tenant-knowledge-config.js";
 import {
   buildRuntimeSystemPrompt,
+  HANDOFF_REASON_LABELS,
   parseToneCommonPhrases
 } from "./prompts.js";
 import type { HandoffReason } from "./prompts.js";
@@ -46,6 +47,9 @@ import {
 } from "./conversation-history.js";
 import { formatCustomerMemory } from "./customer-memory.js";
 import { productQuoteService } from "../quotes/product-quote.service.js";
+import { mechanicAgentService } from "../vehicles/mechanic-agent.service.js";
+import { systemEventService } from "../conversations/system-event.service.js";
+import { buildSystemEvent } from "../conversations/system-event-copy.js";
 
 const BOT_SETUP_MESSAGE =
   "Hola. Estamos configurando nuestro asistente. Te responderemos muy pronto.";
@@ -191,6 +195,18 @@ export class ResponsePipelineService {
         incomingText: input.incomingText
       });
       if (quoteSend.sent) {
+        await systemEventService.append({
+          tenantId: input.tenant.id,
+          conversationId: input.conversation.id,
+          customerId: input.customer.id,
+          customerPhone: input.customer.phoneNumber,
+          event: buildSystemEvent(
+            "quote_prepared",
+            "BOT",
+            "Cotización PDF armada según el catálogo y enviada por WhatsApp.",
+            { message_id: quoteSend.messageId ?? null }
+          )
+        });
         return {
           mode: "bot",
           ...(quoteSend.messageId ? { outboundMessageId: quoteSend.messageId } : {})
@@ -309,6 +325,16 @@ export class ResponsePipelineService {
           })
         : undefined;
     const customerMemory = formatCustomerMemory(customerRow);
+    const mechanic = await mechanicAgentService.buildContext({
+      tenantId: input.tenant.id,
+      conversationId: input.conversation.id,
+      customerId: input.customer.id,
+      customerPhone: input.customer.phoneNumber,
+      text: input.incomingText,
+      configJson,
+      emitEvents: true,
+      actor: "BOT"
+    });
     const runtimePromptInput: Parameters<typeof buildRuntimeSystemPrompt>[0] = {
       businessName: input.tenant.name,
       botName: input.tenant.config.botName,
@@ -316,7 +342,8 @@ export class ResponsePipelineService {
       knowledge,
       commonPhrases: parseToneCommonPhrases(configJson),
       ...(greetingStyleHint ? { greetingStyleHint } : {}),
-      ...(customerMemory ? { customerMemory } : {})
+      ...(customerMemory ? { customerMemory } : {}),
+      ...(mechanic.context ? { vehicleContext: mechanic.context } : {})
     };
     if (configJson.toneRules && typeof configJson.toneRules === "object") {
       runtimePromptInput.toneRules = configJson.toneRules as Record<string, unknown>;
@@ -464,6 +491,15 @@ export class ResponsePipelineService {
       accessToken: input.channel.accessToken
     });
     const outboundMessageId = await this.persistBotReply(input, result.reply, false);
+    await systemEventService.append({
+      tenantId: input.tenant.id,
+      conversationId: input.conversation.id,
+      customerId: input.customer.id,
+      customerPhone: input.customer.phoneNumber,
+      event: buildSystemEvent("handoff", "BOT", HANDOFF_REASON_LABELS[handoffReason], {
+        reason: handoffReason
+      })
+    });
     return { reply: result.reply, outboundMessageId, mode: "human" };
   }
 

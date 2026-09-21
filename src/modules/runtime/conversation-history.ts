@@ -78,7 +78,8 @@ export async function getConversationHistory(input: {
   const rows = await prisma.message.findMany({
     where: {
       conversationId: input.conversationId,
-      customerRevokedAt: null
+      customerRevokedAt: null,
+      senderType: { not: SenderType.SYSTEM }
     },
     orderBy: { createdAt: "desc" },
     take,

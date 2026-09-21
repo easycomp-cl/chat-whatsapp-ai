@@ -19,6 +19,7 @@ export function buildRuntimeSystemPrompt(input: {
   toneRules?: Record<string, unknown>;
   greetingStyleHint?: string;
   customerMemory?: string;
+  vehicleContext?: string;
 }) {
   const phrases = input.commonPhrases?.length
     ? `Puedes usar expresiones como: ${input.commonPhrases.join(", ")}.`
@@ -56,6 +57,9 @@ export function buildRuntimeSystemPrompt(input: {
   const customerBlock = input.customerMemory?.trim()
     ? `DATOS DEL CLIENTE (no los contradigas; no pidas de nuevo un dato ya conocido):\n${input.customerMemory.trim()}`
     : "";
+  const vehicleBlock = input.vehicleContext?.trim()
+    ? `CONTEXTO VEHÍCULO / AGENTE MECÁNICA (beta):\n${input.vehicleContext.trim()}\nSolo afirma que un repuesto sirve a un modelo si aparece en este bloque. Si no está, pide patente o marca/modelo/año y no inventes fitment. Si hay match, dilo como "según nuestra base beta" y contrasta con el stock listado.`
+    : "";
 
   return `
 Eres ${input.botName}, asistente del negocio ${input.businessName}.
@@ -76,6 +80,8 @@ ${styleHints.join(" ")}
 Responde siempre en español.
 
 ${customerBlock}
+
+${vehicleBlock}
 
 CONTEXTO CONFIABLE:
 ${input.knowledge || "Sin contexto suficiente."}

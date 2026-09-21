@@ -11,6 +11,7 @@ import { paramId } from "../../utils/params.js";
 import { requireTenantFaq } from "../../utils/tenant-resource.js";
 import { setNoStore, setPrivateHttpCache } from "../../lib/http-cache.js";
 import { normalizeTeamMemberRole, serializeTeamMemberRole } from "../../utils/team-member-role.js";
+import { onboardingService } from "../onboarding/onboarding.service.js";
 import { enqueueProvisionStandardTemplatesSafe } from "../queue/whatsapp-templates.queue.js";
 
 const createBusinessSchema = z.object({
@@ -68,6 +69,7 @@ export async function listBusinesses(_req: Request, res: Response) {
       defaultAiModel: true,
       confidenceThreshold: true,
       timezone: true,
+      logoUrl: true,
       createdAt: true,
       updatedAt: true
     }
@@ -82,6 +84,7 @@ export async function listBusinesses(_req: Request, res: Response) {
       default_ai_model: t.defaultAiModel,
       confidence_threshold: t.confidenceThreshold,
       timezone: t.timezone,
+      logo_url: t.logoUrl,
       created_at: t.createdAt,
       updated_at: t.updatedAt
     }))
@@ -96,6 +99,7 @@ export async function createBusiness(req: Request, res: Response) {
       slug: body.slug,
       businessType: body.businessType,
       timezone: body.timezone,
+      metadataJson: onboardingService.ensureInitialSetupMetadata(null),
       config: {
         create: {
           botName: body.botName,
@@ -153,6 +157,7 @@ export async function getBusiness(req: Request, res: Response) {
     default_ai_model: tenant.defaultAiModel,
     confidence_threshold: tenant.confidenceThreshold,
     timezone: tenant.timezone,
+    logo_url: tenant.logoUrl,
     config: tenant.config,
     whatsapp_accounts: tenant.channels,
     agents: tenant.admins.map((admin) => ({

@@ -2,15 +2,29 @@ import { KnowledgeDocumentStatus } from "@prisma/client";
 import type {
   OnboardingChecklistKey,
   OnboardingDraft,
+  OnboardingPatch,
   OnboardingSetupMetadata,
   SetupStatusResponse
 } from "./onboarding.types.js";
-import { ONBOARDING_SETUP_VERSION } from "./onboarding.types.js";
+import {
+  ONBOARDING_DESCRIPTION_MAX,
+  ONBOARDING_DESCRIPTION_MIN,
+  ONBOARDING_SETUP_VERSION
+} from "./onboarding.types.js";
 import { isOnboardingRequired } from "./onboarding-config.js";
+import { isHttpsLogoUrl } from "./logo-url.js";
+import { isScheduleParseable } from "./schedule.js";
+
+const E164_PHONE = /^\+[1-9]\d{6,14}$/;
 
 function asRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return value as Record<string, unknown>;
+}
+
+function asDraft(value: unknown): OnboardingDraft {
+  const record = asRecord(value);
+  return record as OnboardingDraft;
 }
 
 export function createInitialSetupMetadata(): OnboardingSetupMetadata {
@@ -18,6 +32,8 @@ export function createInitialSetupMetadata(): OnboardingSetupMetadata {
     version: ONBOARDING_SETUP_VERSION,
     started_at: new Date().toISOString(),
     completed_at: null,
+    current_step: 1,
+    draft_updated_at: null,
     draft: {},
     checklist: {},
     generated: {
@@ -31,15 +47,22 @@ export function createInitialSetupMetadata(): OnboardingSetupMetadata {
 export function parseSetupMetadata(metadataJson: unknown): OnboardingSetupMetadata {
   const record = asRecord(metadataJson);
   const setup = asRecord(record.setup);
-  const draft = asRecord(setup.draft) as OnboardingDraft;
+  const draft = asDraft(setup.draft);
   const checklist = asRecord(setup.checklist) as Partial<Record<OnboardingChecklistKey, boolean>>;
   const generated = asRecord(setup.generated);
+  const currentStepRaw = setup.current_step;
+  const currentStep =
+    typeof currentStepRaw === "number" && Number.isInteger(currentStepRaw) && currentStepRaw >= 1 && currentStepRaw <= 5
+      ? currentStepRaw
+      : 1;
 
   return {
     version: typeof setup.version === "number" ? setup.version : ONBOARDING_SETUP_VERSION,
     started_at:
       typeof setup.started_at === "string" ? setup.started_at : new Date().toISOString(),
     completed_at: typeof setup.completed_at === "string" ? setup.completed_at : null,
+    current_step: currentStep,
+    draft_updated_at: typeof setup.draft_updated_at === "string" ? setup.draft_updated_at : null,
     draft,
     checklist,
     generated: {
@@ -57,19 +80,35 @@ export function parseSetupMetadata(metadataJson: unknown): OnboardingSetupMetada
 
 export function mergeOnboardingDraft(
   existing: OnboardingDraft,
-  patch: OnboardingDraft
+  patch: OnboardingPatch
 ): OnboardingDraft {
   const next: OnboardingDraft = { ...existing };
 
   if (patch.identity) {
-    next.identity = { ...existing.identity, ...patch.identity };
+    const { logo_url: logoUrlPatch, ...identityRest } = patch.identity;
+    next.identity = { ...existing.identity, ...identityRest };
+    if (logoUrlPatch === null) {
+      next.identity.logo_url = null;
+    } else if (isHttpsLogoUrl(logoUrlPatch)) {
+      next.identity.logo_url = logoUrlPatch.trim();
+    }
   }
+
   if (patch.offerings !== undefined) {
     next.offerings = patch.offerings;
   }
+
   if (patch.operations) {
     next.operations = { ...existing.operations, ...patch.operations };
+    const region = next.operations.region?.trim() || next.operations.city?.trim();
+    if (region) {
+      next.operations.region = region;
+      if (!next.operations.city?.trim()) {
+        next.operations.city = region;
+      }
+    }
   }
+
   if (patch.human_contact) {
     const previousPhone = existing.human_contact?.admin_phone?.trim();
     const nextPhone = patch.human_contact.admin_phone?.trim();
@@ -78,6 +117,7 @@ export function mergeOnboardingDraft(
       next.human_contact.admin_phone_verified_at = null;
     }
   }
+
   if (patch.bot_identity) {
     next.bot_identity = { ...existing.bot_identity, ...patch.bot_identity };
   }
@@ -85,24 +125,53 @@ export function mergeOnboardingDraft(
   return next;
 }
 
+export function resolveUseNamedAgent(draft: OnboardingDraft): boolean {
+  if (draft.bot_identity?.use_named_agent != null) {
+    return draft.bot_identity.use_named_agent;
+  }
+  return Boolean(draft.bot_identity?.bot_name?.trim());
+}
+
+export function isE164Phone(value: string | undefined): boolean {
+  return Boolean(value && E164_PHONE.test(value.trim()));
+}
+
 export function computeChecklist(input: {
   draft: OnboardingDraft;
   hasActiveWhatsappChannel: boolean;
   profileDocumentStatus?: KnowledgeDocumentStatus | null;
-  hasPrimaryAdmin: boolean;
+  hasPrimaryAdmin?: boolean;
   tenantBotName?: string;
 }): Record<OnboardingChecklistKey, boolean> {
   const { draft } = input;
-  const identityDone = (draft.identity?.description?.trim().length ?? 0) >= 50;
+  const name = draft.identity?.business_name?.trim() ?? "";
+  const description = draft.identity?.description?.trim() ?? "";
+  const identityDone =
+    name.length >= 2 &&
+    Boolean(draft.identity?.business_type) &&
+    description.length >= ONBOARDING_DESCRIPTION_MIN &&
+    description.length <= ONBOARDING_DESCRIPTION_MAX;
+
+  const offerings = draft.offerings ?? [];
   const offeringsDone =
-    (draft.offerings?.length ?? 0) >= 1 &&
-    draft.offerings!.every((o) => o.name.trim().length > 0 && o.description.trim().length >= 10);
+    offerings.length >= 1 &&
+    offerings.every(
+      (item) =>
+        Boolean(item.name?.trim()) && (item.description?.trim().length ?? 0) >= 10
+    );
+
   const operationsDone =
-    Boolean(draft.operations?.schedule?.trim()) &&
-    (draft.operations?.payment_methods?.length ?? 0) >= 1;
-  const humanContactDone = Boolean(draft.human_contact?.admin_phone?.trim()) || input.hasPrimaryAdmin;
+    isScheduleParseable(draft.operations?.schedule) &&
+    (draft.operations?.payment_methods?.filter((method) => method.trim()).length ?? 0) >= 1;
+
+  const humanContactDone =
+    Boolean(draft.human_contact?.admin_name?.trim()) && isE164Phone(draft.human_contact?.admin_phone);
+
+  const greeting = draft.bot_identity?.greeting_message?.trim() ?? "";
   const botIdentityDone =
-    Boolean(draft.bot_identity?.bot_name?.trim()) || Boolean(input.tenantBotName?.trim());
+    greeting.length >= 10 &&
+    (!resolveUseNamedAgent(draft) || Boolean(draft.bot_identity?.bot_name?.trim()));
+
   const knowledgeIndexed = input.profileDocumentStatus === KnowledgeDocumentStatus.INDEXED;
 
   return {
@@ -124,18 +193,22 @@ const REQUIRED_FOR_GO_LIVE: OnboardingChecklistKey[] = [
   "bot_identity"
 ];
 
+export function missingRequiredSections(
+  checklist: Record<OnboardingChecklistKey, boolean>
+): string[] {
+  return REQUIRED_FOR_GO_LIVE.filter((key) => !checklist[key]);
+}
+
 export function buildSetupStatus(input: {
   setup: OnboardingSetupMetadata;
   checklist: Record<OnboardingChecklistKey, boolean>;
   botGlobalEnabled: boolean;
   allowGoLiveWithoutChannel: boolean;
+  currentStep?: number;
+  draftUpdatedAt?: string | null;
+  completedAt?: string | null;
 }): SetupStatusResponse {
-  const missing: string[] = [];
-  for (const key of REQUIRED_FOR_GO_LIVE) {
-    if (!input.checklist[key]) {
-      missing.push(key);
-    }
-  }
+  const missing = missingRequiredSections(input.checklist);
 
   if (!input.allowGoLiveWithoutChannel && !input.checklist.whatsapp_channel) {
     missing.push("whatsapp_channel");
@@ -147,7 +220,7 @@ export function buildSetupStatus(input: {
 
   const doneCount = requiredKeys.filter((key) => input.checklist[key]).length;
   const progressPercent = Math.round((doneCount / requiredKeys.length) * 100);
-  const canGoLive = missing.length === 0;
+  const sectionsComplete = missing.length === 0;
   const onboardingRequired = isOnboardingRequired();
 
   const checklistResponse = {} as SetupStatusResponse["checklist"];
@@ -168,15 +241,24 @@ export function buildSetupStatus(input: {
     };
   }
 
+  const currentStep = input.currentStep ?? input.setup.current_step ?? 1;
+
   return {
     setup_version: input.setup.version,
-    completed_at: input.setup.completed_at ?? null,
+    completed_at: input.completedAt ?? input.setup.completed_at ?? null,
     progress_percent: onboardingRequired ? progressPercent : 100,
-    can_go_live: onboardingRequired ? canGoLive : true,
+    can_go_live: onboardingRequired ? sectionsComplete : true,
     onboarding_required: onboardingRequired,
     bot_global_enabled: input.botGlobalEnabled,
+    current_step: currentStep >= 1 && currentStep <= 5 ? currentStep : 1,
+    draft_updated_at: input.draftUpdatedAt ?? input.setup.draft_updated_at ?? null,
     checklist: checklistResponse,
     missing_for_go_live: missing,
-    draft: input.setup.draft
+    draft: input.setup.draft ?? {}
   };
+}
+
+export function isDraftMeaningful(draft: OnboardingDraft | undefined): boolean {
+  if (!draft) return false;
+  return Object.keys(draft).length > 0;
 }

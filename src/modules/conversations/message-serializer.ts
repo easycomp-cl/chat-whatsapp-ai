@@ -6,6 +6,10 @@ import {
 } from "../../utils/whatsapp-delivery-error.js";
 import { readStoredOutboundInteractive } from "../../utils/whatsapp-interactive.js";
 import type { OutboundInteractiveMessage } from "../../utils/whatsapp-interactive.js";
+import {
+  readStoredSystemEvent,
+  type SystemEventPayload
+} from "./system-event.types.js";
 
 export type SerializedOutboundTemplate = {
   name: string;
@@ -53,6 +57,7 @@ export type SerializedMessage = {
   replyToExternalId: string | null;
   created_at: Date;
   media: SerializedMessageMedia;
+  system_event: SystemEventPayload | null;
 };
 
 export function serializeMessage(message: Message): SerializedMessage {
@@ -100,7 +105,8 @@ export function serializeMessage(message: Message): SerializedMessage {
       filename: message.mediaFilename,
       file_size: message.mediaFileSize,
       media_url_path: hasMedia ? `/messages/${message.id}/media-url` : null
-    }
+    },
+    system_event: readStoredSystemEvent(message.rawPayloadJson)
   };
 }
 

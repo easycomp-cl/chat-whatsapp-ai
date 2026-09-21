@@ -33,7 +33,22 @@ const envSchema = z.object({
   SKIP_WEBHOOK_SIGNATURE: z
     .string()
     .optional()
-    .transform((v) => v === "true")
+    .transform((v) => v === "true"),
+  VEHICLE_PLATE_API_URL: z
+    .string()
+    .optional()
+    .transform((v) => {
+      const trimmed = v?.trim();
+      return trimmed ? trimmed : undefined;
+    }),
+  VEHICLE_PLATE_API_KEY: z
+    .string()
+    .optional()
+    .transform((v) => {
+      const trimmed = v?.trim();
+      return trimmed ? trimmed : undefined;
+    }),
+  VEHICLE_PLATE_PROVIDER: z.enum(["generic", "boostr"]).default("generic")
 });
 
 export const env = envSchema.parse(process.env);

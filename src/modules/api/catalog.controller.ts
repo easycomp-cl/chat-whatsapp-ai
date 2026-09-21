@@ -4,6 +4,8 @@ import { prisma } from "../../lib/prisma.js";
 import { catalogService } from "../catalog/catalog.service.js";
 import { paramId } from "../../utils/params.js";
 import { requireTenantExists } from "../../utils/tenant-resource.js";
+import { vehicleFitmentService } from "../vehicles/vehicle-fitment.service.js";
+import { vehiclePlateService } from "../vehicles/vehicle-plate.service.js";
 
 const shopifySchema = z.object({
   shop_domain: z.string().min(1),
@@ -47,6 +49,54 @@ function serializeCatalogProduct(product: {
 
 export async function listCatalogProducts(req: Request, res: Response) {
   const businessId = paramId(req, "businessId");
+  const query = z
+    .object({
+      make: z.string().optional(),
+      model: z.string().optional(),
+      year: z.coerce.number().int().optional(),
+      plate: z.string().optional(),
+      part_type: z.string().optional()
+    })
+    .parse(req.query);
+
+  if (query.make || query.model || query.plate || query.year) {
+    let vehicle = vehicleFitmentService.resolveVehicle({
+      ...(query.make ? { make: query.make } : {}),
+      ...(query.model ? { model: query.model } : {}),
+      ...(query.year != null ? { year: query.year } : {})
+    });
+    if (!vehicle && query.plate) {
+      vehicle = (await vehiclePlateService.lookup(query.plate)).vehicle;
+    }
+    if (vehicle) {
+      const fitment = await vehicleFitmentService.findCompatible({
+        tenantId: businessId,
+        vehicle,
+        ...(query.part_type ? { partType: query.part_type } : {})
+      });
+      res.json(
+        fitment.compatible.map((product) => ({
+          id: product.id,
+          product_id: product.id,
+          sku: product.sku,
+          name: product.name,
+          description: null,
+          price: product.price,
+          currency: product.currency,
+          category: product.category,
+          tags: [],
+          isActive: product.in_stock,
+          is_active: product.in_stock,
+          part_type: product.part_type,
+          part_label: product.part_label,
+          fitment_spec: product.spec,
+          fitment_match: product.match
+        }))
+      );
+      return;
+    }
+  }
+
   const products = await prisma.tenantCatalogProduct.findMany({
     where: { tenantId: businessId, isActive: true },
     orderBy: [{ category: "asc" }, { name: "asc" }]

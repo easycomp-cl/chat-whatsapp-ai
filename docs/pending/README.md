@@ -16,11 +16,13 @@ Documentación para implementar en el futuro la conexión self-service de **What
 | Documento | Estado |
 |-----------|--------|
 | [backend-onboarding-setup-wizard.md](./backend-onboarding-setup-wizard.md) | **Backend listo** — wizard setup negocio + Escalation Detector; UI pendiente |
+| [backend-onboarding-draft-persistence.md](./backend-onboarding-draft-persistence.md) | **Backend listo** — borrador por tenant, PATCH parcial, `current_step` / `draft_updated_at` |
 | [flows-backend-mvp.md](./flows-backend-mvp.md) | **PR4 listo** — motor + pricing catálogo/delivery |
 | [flows-supabase-storage.md](./flows-supabase-storage.md) | **Pendiente deploy** — bucket `flow-files` |
 | [whatsapp-media-ui.md](../to-front/whatsapp-media-ui.md) | **Backend listo** — imágenes/PDF en chat; spec para UI |
 | [backend-whatsapp-templates-pack.md](./backend-whatsapp-templates-pack.md) | **Backend listo** — pack plantillas WABA + envío; UI Mis plantillas pendiente |
 | [backend-cotizacion-productos-pdf.md](./backend-cotizacion-productos-pdf.md) | **Backend listo** — preview + PDF de cotización (asesor y bot); plantilla `product_quote` |
+| [backend-vehiculos-fitment-patente.md](./backend-vehiculos-fitment-patente.md) | **Backend listo** — patentes, fitment, globos SYSTEM (píldora azul + tarjeta negra del auto) |
 | [demo-easycomp-repuestos-checklist.md](./demo-easycomp-repuestos-checklist.md) | **Ops demo** — onboarding, catálogo 40 SKUs, conocimiento, guion; quién hace qué |
 | [easycomp-chat-bot-manager-especificacion-modulo-flujos.md](./easycomp-chat-bot-manager-especificacion-modulo-flujos.md) | Spec completa (referencia) |
 | [migracion-dominio-chatbotmanager.md](./migracion-dominio-chatbotmanager.md) | **Ops** — DNS, ACM, Meta, Vercel para `chatbotmanager.easycomp.cl` |

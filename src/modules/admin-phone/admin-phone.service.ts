@@ -5,7 +5,8 @@ import { prisma } from "../../lib/prisma.js";
 import { WhatsAppClient } from "../channel/whatsapp.client.js";
 import { TenantResolverService } from "../tenants/tenant-resolver.service.js";
 import { requireTenantExists } from "../../utils/tenant-resource.js";
-import { parseSetupMetadata } from "../onboarding/setup-status.service.js";
+import { persistOnboardingDraftState } from "../onboarding/onboarding-draft.store.js";
+import { mergeOnboardingDraft, parseSetupMetadata } from "../onboarding/setup-status.service.js";
 import {
   STANDARD_TEMPLATE_LANGUAGE,
   buildSendTemplateComponents,
@@ -207,7 +208,7 @@ export class AdminPhoneService {
   private async markVerified(tenantId: string, phone: string, verificationId: string) {
     const tenant = await prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { id: true, metadataJson: true }
+      select: { id: true, metadataJson: true, onboardingDraft: true }
     });
     if (!tenant) {
       throw adminPhoneError("tenant_not_found", "No existe el negocio indicado.", 404);
@@ -248,7 +249,7 @@ export class AdminPhoneService {
         });
       }
 
-      await this.persistVerifiedAtInDraft(tx, tenantId, tenant.metadataJson, phone, verifiedAt);
+      await this.persistVerifiedAtInDraft(tx, tenant, phone, verifiedAt);
     });
 
     return {
@@ -259,41 +260,35 @@ export class AdminPhoneService {
 
   private async persistVerifiedAtInDraft(
     tx: Prisma.TransactionClient,
-    tenantId: string,
-    metadataJson: Prisma.JsonValue | null,
+    tenant: {
+      id: string;
+      metadataJson: Prisma.JsonValue | null;
+      onboardingDraft: {
+        currentStep: number;
+        draftJson: Prisma.JsonValue;
+      } | null;
+    },
     phone: string,
     verifiedAt: Date
   ) {
-    const record =
-      metadataJson && typeof metadataJson === "object" && !Array.isArray(metadataJson)
-        ? { ...(metadataJson as Record<string, unknown>) }
-        : {};
-    const setup =
-      record.setup && typeof record.setup === "object" && !Array.isArray(record.setup)
-        ? { ...(record.setup as Record<string, unknown>) }
-        : {};
-    const draft =
-      setup.draft && typeof setup.draft === "object" && !Array.isArray(setup.draft)
-        ? { ...(setup.draft as Record<string, unknown>) }
-        : {};
-    const humanContact =
-      draft.human_contact && typeof draft.human_contact === "object" && !Array.isArray(draft.human_contact)
-        ? { ...(draft.human_contact as Record<string, unknown>) }
-        : {};
-
-    setup.draft = {
-      ...draft,
+    const setup = parseSetupMetadata(tenant.metadataJson);
+    const storedDraft =
+      tenant.onboardingDraft && typeof tenant.onboardingDraft.draftJson === "object" && tenant.onboardingDraft.draftJson
+        ? (tenant.onboardingDraft.draftJson as Parameters<typeof mergeOnboardingDraft>[0])
+        : setup.draft;
+    const nextDraft = mergeOnboardingDraft(storedDraft, {
       human_contact: {
-        ...humanContact,
         admin_phone: phone,
         admin_phone_verified_at: verifiedAt.toISOString()
       }
-    };
-    record.setup = setup;
+    });
 
-    await tx.tenant.update({
-      where: { id: tenantId },
-      data: { metadataJson: record as Prisma.InputJsonValue }
+    await persistOnboardingDraftState(tx, {
+      tenantId: tenant.id,
+      metadataJson: tenant.metadataJson,
+      setup,
+      draft: nextDraft,
+      currentStep: tenant.onboardingDraft?.currentStep ?? setup.current_step ?? 1
     });
   }
 

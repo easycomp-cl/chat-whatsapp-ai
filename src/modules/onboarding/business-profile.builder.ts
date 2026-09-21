@@ -19,10 +19,10 @@ function formatBusinessType(type?: string): string {
 
 function formatOfferingLine(offering: OnboardingOffering): string {
   const priceLine =
-    offering.price !== undefined
+    offering.price !== undefined && offering.price !== null
       ? ` — ${offering.price} ${offering.currency ?? "CLP"}`
       : "";
-  return `- ${offering.name}: ${offering.description}${priceLine}`;
+  return `- ${offering.name ?? "Ítem"}: ${offering.description ?? ""}${priceLine}`;
 }
 
 export function buildBusinessProfileDocument(input: {
@@ -85,7 +85,7 @@ export function buildSeedFaqs(input: {
 }): SeedFaqDefinition[] {
   const { identity, offerings = [], operations } = input.draft;
   const offeringList = offerings.length
-    ? offerings.map((o) => `• ${o.name}: ${o.description}`).join("\n")
+    ? offerings.map((o) => `• ${o.name ?? "Ítem"}: ${o.description ?? ""}`).join("\n")
     : identity?.description?.trim() || "Consulta con el negocio.";
 
   const locationParts = [operations?.address, operations?.commune, operations?.city]
@@ -140,7 +140,7 @@ export function buildSeedFaqs(input: {
   ];
 
   for (const offering of offerings) {
-    if (offering.price === undefined) continue;
+    if (offering.price === undefined || offering.price === null || !offering.name?.trim()) continue;
     faqs.push({
       question: `¿Cuánto cuesta ${offering.name}?`,
       answer: `${offering.name} cuesta ${offering.price} ${offering.currency ?? "CLP"}.`,

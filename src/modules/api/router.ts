@@ -148,6 +148,14 @@ import {
   sendAdminPhoneVerification
 } from "./admin-phone.controller.js";
 import { adminPhoneVerificationLimiter } from "../admin-phone/admin-phone.rate-limit.js";
+import {
+  listCompatibleCatalogProducts,
+  listProductFitment,
+  lookupConversationVehicle,
+  lookupVehiclePlate,
+  searchVehicleModelsHandler,
+  upsertProductFitment
+} from "./vehicles.controller.js";
 
 export function createApiRouter() {
   const router = Router();
@@ -210,6 +218,18 @@ export function createApiRouter() {
   router.post("/conversations/:id/quotes/preview", previewConversationQuote);
   router.post("/conversations/:id/quotes/pdf", downloadConversationQuotePdf);
   router.post("/conversations/:id/quotes/send", sendConversationQuote);
+  router.post("/conversations/:id/vehicles/lookup", lookupConversationVehicle);
+  router.get("/vehicles/plates/:plate", lookupVehiclePlate);
+  router.get("/vehicles/models", searchVehicleModelsHandler);
+  router.get("/businesses/:businessId/vehicles/fitment", listCompatibleCatalogProducts);
+  router.get(
+    "/businesses/:businessId/catalog/products/:productId/fitment",
+    listProductFitment
+  );
+  router.put(
+    "/businesses/:businessId/catalog/products/:productId/fitment",
+    upsertProductFitment
+  );
   router.get("/messages/:id/media-url", getMessageMediaUrl);
   router.get("/messages/:id/media/file", streamMessageMediaFile);
   router.post("/messages/:id/resend", resendOutboundMessage);

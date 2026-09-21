@@ -44,6 +44,7 @@ describe("soft fallback state", () => {
 describe("onboarding builders", () => {
   const draft = {
     identity: {
+      business_name: "Panadería Sol",
       business_type: "products" as const,
       description: "Panadería artesanal en Santiago con productos horneados todos los días."
     },

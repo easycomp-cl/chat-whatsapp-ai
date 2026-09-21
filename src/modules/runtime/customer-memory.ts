@@ -1,3 +1,5 @@
+import { formatGarageMemory, readCustomerGarage } from "../customers/customer-garage.js";
+
 const METADATA_LABELS: Record<string, string> = {
   preferred_payment: "Forma de pago preferida",
   payment_method: "Forma de pago preferida",
@@ -7,7 +9,9 @@ const METADATA_LABELS: Record<string, string> = {
   favorite_product: "Pedido frecuente",
   usual_order: "Pedido frecuente",
   birthday: "Cumpleaños",
-  notes: "Notas"
+  notes: "Notas",
+  last_name: "Apellido",
+  active_vehicle_plate: "Patente"
 };
 
 type CustomerMemorySource = {
@@ -61,8 +65,21 @@ export function formatCustomerMemory(customer: CustomerMemorySource | null | und
   if (trimOptional(customer.delivery1Notes)) lines.push(`Notas de despacho: ${customer.delivery1Notes!.trim()}`);
 
   const metadata = asRecord(customer.profileMetadata);
+  const garage = readCustomerGarage(metadata);
+  if (garage.last_name) lines.push(`Apellido: ${garage.last_name}`);
+  const garageMemory = formatGarageMemory(garage);
+  if (garageMemory) lines.push(garageMemory);
+
   for (const [key, raw] of Object.entries(metadata)) {
     if (raw == null || typeof raw === "object") continue;
+    if (
+      key === "first_name" ||
+      key === "last_name" ||
+      key === "active_vehicle_plate" ||
+      key === "active_vehicle_key"
+    ) {
+      continue;
+    }
     const value = String(raw).trim();
     if (!value) continue;
     const label = METADATA_LABELS[key] ?? key.replace(/_/g, " ");

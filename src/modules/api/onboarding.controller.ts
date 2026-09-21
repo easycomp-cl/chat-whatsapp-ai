@@ -1,8 +1,15 @@
 import type { Request, Response } from "express";
 import { paramId } from "../../utils/params.js";
 import { onboardingCompleteSchema, onboardingPatchSchema } from "../onboarding/onboarding.schema.js";
-import type { OnboardingDraft } from "../onboarding/onboarding.types.js";
+import { ONBOARDING_PATCH_MAX_BYTES } from "../onboarding/onboarding.types.js";
+import type { OnboardingPatch } from "../onboarding/onboarding.types.js";
 import { onboardingService } from "../onboarding/onboarding.service.js";
+
+function requestBodyBytes(req: Request): number {
+  const raw = (req as Request & { rawBody?: Buffer }).rawBody;
+  if (raw) return raw.length;
+  return Buffer.byteLength(JSON.stringify(req.body ?? {}), "utf8");
+}
 
 export async function getSetupStatus(req: Request, res: Response) {
   const tenantId = paramId(req, "id");
@@ -15,8 +22,16 @@ export async function getSetupStatus(req: Request, res: Response) {
 }
 
 export async function patchOnboarding(req: Request, res: Response) {
+  if (requestBodyBytes(req) > ONBOARDING_PATCH_MAX_BYTES) {
+    res.status(413).json({
+      error: "payload_too_large",
+      message: "El borrador es demasiado grande. No envíes data URLs."
+    });
+    return;
+  }
+
   const tenantId = paramId(req, "id");
-  const body = onboardingPatchSchema.parse(req.body) as OnboardingDraft;
+  const body = onboardingPatchSchema.parse(req.body) as OnboardingPatch;
   const status = await onboardingService.patchDraft(tenantId, body);
   if (!status) {
     res.status(404).json({ error: "Business not found" });

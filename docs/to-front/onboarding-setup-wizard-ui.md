@@ -4,9 +4,9 @@
 
 Pantalla obligatoria tras crear un negocio para recopilar datos mínimos (qué venden, horario, contacto humano, identidad del bot) antes de activar el asistente de WhatsApp. El backend genera automáticamente FAQs semilla y un documento RAG **Perfil del negocio**.
 
-**Backend listo:** `GET /businesses/:id/setup-status`, `PATCH /businesses/:id/onboarding`, `POST /businesses/:id/onboarding/complete`. Sin migración SQL.
+**Backend listo:** `GET /businesses/:id/setup-status` (incluye `draft`, `current_step`, `draft_updated_at`), `PATCH /businesses/:id/onboarding` (borrador **parcial**, sin validar el paso), `POST /businesses/:id/onboarding/complete`. Persistencia por tenant en `TenantOnboardingDraft` + `Tenant.logoUrl` / `onboardingCompletedAt`.
 
-**Relacionado:** [backend-onboarding-setup-wizard.md](../pending/backend-onboarding-setup-wizard.md) (spec técnica backend + Escalation Detector).
+**Relacionado:** [backend-onboarding-setup-wizard.md](../pending/backend-onboarding-setup-wizard.md) (spec técnica backend + Escalation Detector). [backend-onboarding-draft-persistence.md](../pending/backend-onboarding-draft-persistence.md) (autosave entre dispositivos).
 
 ---
 
@@ -54,6 +54,8 @@ Base URL: la misma del resto del portal (`BOT_API_URL` / proxy Next).
   "can_go_live": false,
   "onboarding_required": true,
   "bot_global_enabled": false,
+  "current_step": 3,
+  "draft_updated_at": "2026-09-17T22:15:00.000Z",
   "checklist": {
     "identity": { "done": true, "required": true },
     "offerings": { "done": true, "required": true },
@@ -65,7 +67,12 @@ Base URL: la misma del resto del portal (`BOT_API_URL` / proxy Next).
   },
   "missing_for_go_live": ["operations"],
   "draft": {
-    "identity": { "business_type": "products", "description": "..." },
+    "identity": {
+      "business_name": "Panadería Aurora",
+      "business_type": "products",
+      "description": "...",
+      "logo_url": "https://cdn.example.com/tenants/abc/logo.png"
+    },
     "offerings": [{ "type": "product", "name": "...", "description": "...", "price": 1200 }],
     "operations": { "schedule": null, "payment_methods": ["efectivo"] }
   }
@@ -73,60 +80,47 @@ Base URL: la misma del resto del portal (`BOT_API_URL` / proxy Next).
 ```
 
 **Notas UI:**
+- `draft` nunca es `null` (`{}` si no hay nada). `current_step` es 1–5 (default `1`). `draft_updated_at` es ISO-8601 UTC o `null` si nunca se guardó.
+- El PATCH de autosave es **parcial**: no valida campos incompletos. `checklist.*.done` y `progress_percent` solo suben cuando la sección cumple las reglas de *complete*.
 - Si `onboarding_required === false`, ignorar banner/wizard (típico en desarrollo).
 - `whatsapp_channel.required` es `false` en staging si el backend tiene `ALLOW_GO_LIVE_WITHOUT_CHANNEL=true`; en producción suele ser requerido.
 - `knowledge_indexed` es informativo post-`complete` (indexación async).
+- `identity.logo_url` solo se persiste si es `https://`. No enviar `data:` ni `blob:`. `logo_url: null` borra el logo. `POST /businesses/:id/logo` aún no está; la UI puede guardar el archivo en localStorage.
 
 ### PATCH `/businesses/:id/onboarding`
 
-Body parcial (snake_case). Guardar al avanzar cada paso o al pulsar *Siguiente*.
+Body parcial (snake_case). Autoguardar con debounce (~800 ms), al cambiar de paso y al cerrar el modal. **Siguiente no debe bloquearse** si el PATCH falla.
 
 ```json
 {
+  "current_step": 2,
   "identity": {
+    "business_name": "Panadería Aurora",
     "business_type": "products",
-    "description": "Panadería artesanal en Santiago con productos horneados todos los días."
-  },
-  "offerings": [
-    {
-      "type": "product",
-      "name": "Pan amasado",
-      "description": "Pan tradicional horneado diario",
-      "price": 1200,
-      "currency": "CLP"
-    }
-  ],
-  "operations": {
-    "schedule": "Lun–Vie 8:00–20:00, Sáb 9:00–14:00",
-    "city": "Santiago",
-    "commune": "Providencia",
-    "address": "Av. Providencia 1234",
-    "payment_methods": ["efectivo", "transferencia", "tarjeta"],
-    "delivery_notes": "Despacho en RM"
-  },
-  "human_contact": {
-    "admin_name": "María",
-    "admin_phone": "+56912345678",
-    "notify_on_handoff": true
-  },
-  "bot_identity": {
-    "bot_name": "Sol",
-    "bot_tone": "profesional y cercano",
-    "greeting_message": "Hola, soy Sol de Panadería Sol."
+    "description": "todavía corta"
   }
 }
 ```
 
-**Validaciones frontend (alineadas al backend):**
+También se pueden mandar las 5 secciones a la vez. Merge profundo por objeto; `offerings` reemplaza el array. Last-write-wins.
+
+**Validaciones (UI para *Siguiente* / `complete`; el PATCH no las exige):**
 
 | Campo | Regla |
 |-------|-------|
-| `identity.description` | ≥ 50 caracteres |
-| `offerings` | ≥ 1 ítem; `description` ≥ 10 chars |
-| `operations.schedule` | obligatorio |
+| `identity.business_name` | ≥ 2 caracteres |
+| `identity.business_type` | `products` / `services` / `both` |
+| `identity.description` | 50–1000 caracteres |
+| `offerings` | ≥ 1 ítem; `name`; `description` ≥ 10 |
+| `operations.schedule` | parseable (días + HH:MM–HH:MM) |
 | `operations.payment_methods` | ≥ 1 |
+| `human_contact.admin_name` | obligatorio |
 | `human_contact.admin_phone` | E.164 |
-| `bot_identity.bot_name` | obligatorio |
+| `bot_identity.greeting_message` | ≥ 10 caracteres |
+| `bot_identity.bot_name` | obligatorio si `use_named_agent` |
+| `identity.logo_url` | opcional; solo `https://` |
+
+**200:** merge OK aunque el paso esté incompleto. **400:** JSON inválido, `business_type` desconocido o `current_step` fuera de 1–5. **413:** body enorme (p. ej. data URL). **No** 409 en PATCH.
 
 ### POST `/businesses/:id/onboarding/complete`
 

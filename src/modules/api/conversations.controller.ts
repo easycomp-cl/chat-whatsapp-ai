@@ -8,6 +8,8 @@ import { usageEventsService, USAGE_EVENT_TYPES } from "../metrics/usage-events.s
 import { paramId } from "../../utils/params.js";
 import { conversationsInboxService } from "../conversations/conversations-inbox.service.js";
 import { serializeMessage } from "../conversations/message-serializer.js";
+import { systemEventService } from "../conversations/system-event.service.js";
+import { buildSystemEvent } from "../conversations/system-event-copy.js";
 
 const inboxQuerySchema = z.object({
   assigned_admin_id: z.string().optional(),
@@ -91,7 +93,7 @@ export async function patchConversationMode(req: Request, res: Response) {
 
   const existing = await prisma.conversation.findUnique({
     where: { id },
-    select: { activeFlowRunId: true }
+    select: { activeFlowRunId: true, mode: true }
   });
   if (!existing) {
     res.status(404).json({ error: "Conversation not found" });
@@ -129,6 +131,25 @@ export async function patchConversationMode(req: Request, res: Response) {
         eventType: USAGE_EVENT_TYPES.BOT_DISABLED
       });
     }
+  }
+
+  if (existing.mode !== body.mode) {
+    await systemEventService.appendForConversation(
+      id,
+      body.mode === "HUMAN"
+        ? buildSystemEvent(
+            "handoff",
+            "HUMAN",
+            "El chat pasa a modo humano. El bot deja de responder.",
+            { mode: body.mode, source: "inbox_mode_patch" }
+          )
+        : buildSystemEvent(
+            "mode_changed",
+            "HUMAN",
+            "El bot vuelve a responder en este chat.",
+            { mode: body.mode, source: "inbox_mode_patch" }
+          )
+    );
   }
 
   const updated = await prisma.conversation.findUnique({ where: { id } });

@@ -3,6 +3,7 @@ import { prisma } from "../../lib/prisma.js";
 import { resolveCustomerDisplayName } from "../../utils/customer-display-name.js";
 import { validateOptionalRut } from "../../utils/chilean-rut.js";
 import { getCustomerReturningStats } from "./customer-returning.service.js";
+import { readCustomerGarage, type CustomerGarage } from "./customer-garage.js";
 
 const HUMAN_PROFILE_SOURCES = new Set([
   "BUSINESS_ADMIN",
@@ -47,6 +48,7 @@ export type CustomerProfileJson = {
   inbound_message_count: number;
   closed_conversation_count: number;
   is_returning: boolean;
+  garage: CustomerGarage;
 };
 
 function trimOptional(value: string | null | undefined): string | null {
@@ -123,7 +125,8 @@ export async function serializeCustomerProfile(
     last_seen_at: customer.lastSeenAt.toISOString(),
     inbound_message_count: stats.inbound_message_count,
     closed_conversation_count: stats.closed_conversation_count,
-    is_returning: stats.is_returning
+    is_returning: stats.is_returning,
+    garage: readCustomerGarage(customer.profileMetadata)
   };
 }
 

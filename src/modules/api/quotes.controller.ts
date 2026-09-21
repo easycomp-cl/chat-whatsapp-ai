@@ -9,6 +9,8 @@ import { ProductQuoteHttpError } from "../quotes/product-quote.errors.js";
 import { productQuoteRequestSchema } from "../quotes/product-quote.schema.js";
 import { productQuoteService } from "../quotes/product-quote.service.js";
 import { quotePdfFilename } from "../quotes/product-quote.utils.js";
+import { systemEventService } from "../conversations/system-event.service.js";
+import { buildSystemEvent } from "../conversations/system-event-copy.js";
 
 function sendQuoteError(res: Response, error: unknown): boolean {
   if (error instanceof ProductQuoteHttpError) {
@@ -90,7 +92,16 @@ export async function sendConversationQuote(req: Request, res: Response) {
     const result = await productQuoteService.send(
       conversationId,
       parsed.data,
-      ProductQuoteCreatedBy.BOT
+      ProductQuoteCreatedBy.HUMAN
+    );
+    await systemEventService.appendForConversation(
+      conversationId,
+      buildSystemEvent(
+        "quote_prepared",
+        "HUMAN",
+        "Cotización PDF armada desde el inbox y enviada por WhatsApp.",
+        { quote_number: result.preview.quote_number, message_id: result.message.id }
+      )
     );
     res.status(201).json({
       quote: result.preview,

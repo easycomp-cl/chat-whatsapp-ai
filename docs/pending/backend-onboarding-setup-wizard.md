@@ -145,7 +145,7 @@ Guarda borrador parcial (idempotente). No activa el bot ni genera KB.
 }
 ```
 
-**Validaciones por campo:**
+**Validaciones por campo (checklist / `complete`; el PATCH no 400 por incompleto):**
 
 | Campo | Regla |
 |-------|-------|

@@ -25,6 +25,7 @@ import {
 } from "./product-quote.utils.js";
 import { matchCatalogProductsFromText } from "./product-quote-match.js";
 import { buildProductQuotePdf } from "./product-quote-pdf.js";
+import { customerProductHistoryService } from "../customers/customer-product-history.service.js";
 
 type QuoteConversation = {
   id: string;
@@ -153,6 +154,21 @@ export class ProductQuoteService {
         pdfStoragePath: stored?.mediaStoragePath ?? null
       }
     });
+
+    try {
+      await customerProductHistoryService.recordQuoted({
+        tenantId: conversation.tenantId,
+        customerId: conversation.customerId,
+        lines: issued.preview.lines.map((line) => ({
+          product_id: line.product_id,
+          sku: line.sku,
+          name: line.name,
+          quantity: line.quantity
+        }))
+      });
+    } catch {
+      // La cotización ya se envió; el historial del contacto no debe abortar el PDF.
+    }
 
     return {
       preview: issued.preview,

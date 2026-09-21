@@ -152,6 +152,7 @@ export class ConversationsInboxService {
         SELECT m."contentText"
         FROM "Message" m
         WHERE m."conversationId" = c.id
+          AND m."senderType" <> 'SYSTEM'
           AND (
             c."chatClearedAt" IS NULL
             OR m."createdAt" > c."chatClearedAt"

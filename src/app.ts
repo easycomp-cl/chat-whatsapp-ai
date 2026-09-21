@@ -81,6 +81,15 @@ export function createApp() {
       });
       return;
     }
+    const payloadError = err as { type?: string; status?: number; statusCode?: number };
+    if (payloadError.type === "entity.too.large" || payloadError.status === 413 || payloadError.statusCode === 413) {
+      res.status(413).json({
+        ok: false,
+        error: "payload_too_large",
+        message: "El cuerpo de la petición es demasiado grande."
+      });
+      return;
+    }
     if (err instanceof WhatsAppConnectionError || err instanceof AdminPhoneError || err instanceof WhatsappTemplateError) {
       res.status(err.statusCode).json({
         ok: false,

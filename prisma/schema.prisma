@@ -82,6 +82,7 @@ enum ContentType {
   DOCUMENT
   INTERACTIVE
   TEMPLATE
+  SYSTEM_EVENT
 }
 
 enum WhatsappTemplateStatus {
@@ -239,8 +240,11 @@ model Tenant {
   confidenceThreshold Float            @default(0.70)
   timezone            String           @default("America/Santiago")
   metadataJson        Json?
+  logoUrl             String?
+  onboardingCompletedAt DateTime?
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
+  onboardingDraft     TenantOnboardingDraft?
   channels            TenantChannel[]
   admins              TenantAdmin[]
   config              TenantConfig?
@@ -274,6 +278,16 @@ model Tenant {
   adminPhoneVerifications    AdminPhoneVerification[]
   paymentLinks               PaymentLink[]
   productQuotes              ProductQuote[]
+}
+
+model TenantOnboardingDraft {
+  id             String   @id @default(cuid())
+  tenantId       String   @unique
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  currentStep    Int      @default(1)
+  draftJson      Json     @default("{}")
+  draftUpdatedAt DateTime @updatedAt
+  createdAt      DateTime @default(now())
 }
 
 model TenantChannel {
@@ -637,9 +651,94 @@ model TenantCatalogProduct {
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
   tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  fitments    CatalogProductFitment[]
 
   @@index([tenantId, isActive])
   @@unique([tenantId, externalId])
+}
+
+model VehicleMake {
+  id        String         @id @default(cuid())
+  slug      String         @unique
+  name      String
+  aliases   Json           @default("[]")
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  models    VehicleModel[]
+}
+
+model VehicleModel {
+  id          String                  @id @default(cuid())
+  makeId      String
+  slug        String
+  name        String
+  yearFrom    Int
+  yearTo      Int?
+  engine      String?
+  aliases     Json                    @default("[]")
+  notes       String?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  make        VehicleMake             @relation(fields: [makeId], references: [id], onDelete: Cascade)
+  fitments    VehicleFitment[]
+  catalogFitments CatalogProductFitment[]
+
+  @@unique([makeId, slug, yearFrom])
+  @@index([slug])
+  @@index([makeId, slug])
+}
+
+model VehicleFitment {
+  id             String       @id @default(cuid())
+  vehicleModelId String
+  partType       String
+  skuHint        String?
+  spec           String?
+  notes          String?
+  confidence     String       @default("beta")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  vehicleModel   VehicleModel @relation(fields: [vehicleModelId], references: [id], onDelete: Cascade)
+
+  @@unique([vehicleModelId, partType])
+  @@index([partType])
+}
+
+model CatalogProductFitment {
+  id                      String               @id @default(cuid())
+  tenantCatalogProductId  String
+  vehicleModelId          String?
+  partType                String
+  isUniversal             Boolean              @default(false)
+  notes                   String?
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  product                 TenantCatalogProduct @relation(fields: [tenantCatalogProductId], references: [id], onDelete: Cascade)
+  vehicleModel            VehicleModel?        @relation(fields: [vehicleModelId], references: [id], onDelete: SetNull)
+
+  @@index([tenantCatalogProductId])
+  @@index([vehicleModelId])
+  @@index([partType])
+}
+
+model VehiclePlateLookup {
+  id              String   @id @default(cuid())
+  plateNormalized String   @unique
+  makeName        String?
+  modelName       String?
+  year            Int?
+  engine          String?
+  vehicleType     String?
+  color           String?
+  vehicleModelId  String?
+  provider        String
+  rawJson         Json?
+  lookedUpAt      DateTime @default(now())
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([expiresAt])
 }
 
 model ProductQuote {

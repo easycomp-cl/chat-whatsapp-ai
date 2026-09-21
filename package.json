@@ -18,6 +18,7 @@
     "prisma:index-knowledge": "tsx prisma/index-knowledge.ts",
     "activate:twd": "tsx scripts/activate-twd-whatsapp.ts",
     "seed:knowledge": "tsx scripts/seed-knowledge-fixtures.ts",
+    "seed:vehicles": "tsx scripts/seed-vehicle-fitment.ts",
     "refresh:knowledge": "tsx scripts/refresh-knowledge-content.ts",
     "test": "vitest run",
     "test:flow-webhook": "tsx scripts/test-flow-webhook-e2e.ts",

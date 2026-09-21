@@ -28,6 +28,7 @@ const prisma = new PrismaClient();
 
 const SAMPLE_DRAFT = {
   identity: {
+    business_name: "Panadería E2E Test",
     business_type: "products" as const,
     description:
       "Panadería artesanal en Santiago especializada en pan amasado, empanadas y pasteles horneados cada día."
@@ -55,6 +56,7 @@ const SAMPLE_DRAFT = {
     notify_on_handoff: true
   },
   bot_identity: {
+    use_named_agent: true,
     bot_name: "Sol Test",
     bot_tone: "profesional y cercano",
     greeting_message: "Hola, soy Sol de Panadería E2E Test."

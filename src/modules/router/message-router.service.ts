@@ -9,6 +9,9 @@ import {
   resolveStoredInboundPipelineText
 } from "../conversations/inbound-audio.service.js";
 import type { NormalizedIncomingMessage } from "../../types/whatsapp.js";
+import { customerProfileExtractService } from "../customers/customer-profile-extract.service.js";
+import { customerProductHistoryService } from "../customers/customer-product-history.service.js";
+import { mechanicAgentService } from "../vehicles/mechanic-agent.service.js";
 import { outboundWhatsAppReplyService } from "../channel/outbound-whatsapp-reply.service.js";
 import { WhatsAppSendError } from "../channel/whatsapp.client.js";
 import { logger } from "../../lib/logger.js";
@@ -111,6 +114,29 @@ export class MessageRouterService {
     }
 
     pipelineText = resolvePipelineText({ ...message, text: pipelineText });
+
+    if (pipelineText.trim() && !ingested.isDuplicate) {
+      await customerProfileExtractService.ingestInbound({
+        tenantId: resolved.tenant.id,
+        conversationId: ingested.conversation.id,
+        customerId: ingested.customer.id,
+        customerPhone: ingested.customer.phoneNumber,
+        text: pipelineText
+      });
+      await mechanicAgentService.observeInbound({
+        tenantId: resolved.tenant.id,
+        conversationId: ingested.conversation.id,
+        customerId: ingested.customer.id,
+        customerPhone: ingested.customer.phoneNumber,
+        text: pipelineText,
+        configJson: resolved.tenant.config?.configJson
+      });
+      await customerProductHistoryService.observeInbound({
+        tenantId: resolved.tenant.id,
+        customerId: ingested.customer.id,
+        text: pipelineText
+      });
+    }
 
     const flowResult = await flowOrchestratorService.handleInbound({
       tenantId: resolved.tenant.id,

@@ -12,3 +12,4 @@ Specs y contratos de API listos para implementar en el repo UI. El backend vive 
 | [whatsapp-embedded-signup-ui.md](./whatsapp-embedded-signup-ui.md) | Conectar WhatsApp Business (Embedded Signup) |
 | [whatsapp-templates-ui.md](./whatsapp-templates-ui.md) | Pack de plantillas Meta, Mis plantillas y envío fuera de 24 h |
 | [cotizacion-productos-ui.md](./cotizacion-productos-ui.md) | Botón + → Herramientas EasyComp → cotización PDF de productos del catálogo |
+| [chat-eventos-sistema-y-vehiculos-ui.md](./chat-eventos-sistema-y-vehiculos-ui.md) | Píldoras azules de acciones + **tarjeta negra** del auto por patente |
