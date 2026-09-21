@@ -4,13 +4,7 @@ import { resolveCustomerDisplayName } from "../../utils/customer-display-name.js
 import { validateOptionalRut } from "../../utils/chilean-rut.js";
 import { getCustomerReturningStats } from "./customer-returning.service.js";
 import { readCustomerGarage, type CustomerGarage } from "./customer-garage.js";
-
-const HUMAN_PROFILE_SOURCES = new Set([
-  "BUSINESS_ADMIN",
-  "SUPER_ADMIN",
-  "HUMAN",
-  "ADMIN"
-]);
+import type { ProfileFieldChange } from "../conversations/system-event-copy.js";
 
 export type CustomerProfileJson = {
   id: string;
@@ -62,27 +56,51 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function isHumanProfileUpdate(source: string | undefined): boolean {
+const GARAGE_METADATA_KEYS = new Set([
+  "vehicles",
+  "active_vehicle",
+  "active_vehicle_key",
+  "active_vehicle_plate",
+  "products_consulted",
+  "products_quoted",
+  "products_purchased"
+]);
+
+export type { ProfileFieldChange };
+
+export type PatchCustomerProfileResult = {
+  customer: Customer;
+  changes: ProfileFieldChange[];
+};
+
+export function isHumanProfileUpdate(source: string | undefined): boolean {
   if (!source) return true;
-  return HUMAN_PROFILE_SOURCES.has(source.toUpperCase());
+  return source.toUpperCase() !== "BOT";
 }
 
-function shouldOverwriteField(input: {
-  existing: unknown;
-  incoming: unknown;
-  profileUpdatedBy?: string;
-}): boolean {
-  if (input.incoming === undefined) {
-    return false;
+export function comparableProfileValue(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : null;
   }
-  if (!isHumanProfileUpdate(input.profileUpdatedBy)) {
-    return true;
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
   }
-  const existingText = typeof input.existing === "string" ? input.existing.trim() : input.existing;
-  if (existingText == null || existingText === "") {
-    return true;
-  }
-  return false;
+  return String(value);
+}
+
+function recordProfileChange(
+  changes: ProfileFieldChange[],
+  field: string,
+  previous: unknown,
+  next: unknown
+): boolean {
+  const from = comparableProfileValue(previous);
+  const to = comparableProfileValue(next);
+  if (from === to) return false;
+  changes.push({ field, previous: from, next: to });
+  return true;
 }
 
 export async function serializeCustomerProfile(
@@ -161,8 +179,10 @@ export async function patchCustomerProfile(input: {
   tenantId: string;
   customerId: string;
   patch: CustomerProfilePatch;
-}): Promise<Customer> {
-  const existing = await prisma.customer.findFirst({
+  db?: Prisma.TransactionClient;
+}): Promise<PatchCustomerProfileResult> {
+  const db = input.db ?? prisma;
+  const existing = await db.customer.findFirst({
     where: { id: input.customerId, tenantId: input.tenantId }
   });
   if (!existing) {
@@ -171,76 +191,50 @@ export async function patchCustomerProfile(input: {
 
   const updatedBy = input.patch.profile_updated_by ?? "BUSINESS_ADMIN";
   const data: Prisma.CustomerUpdateInput = {};
+  const changes: ProfileFieldChange[] = [];
 
   if (input.patch.display_alias !== undefined) {
-    if (
-      shouldOverwriteField({
-        existing: existing.displayAlias,
-        incoming: input.patch.display_alias,
-        profileUpdatedBy: updatedBy
-      })
-    ) {
-      const alias = trimOptional(input.patch.display_alias ?? undefined);
-      if (alias && alias.length > 80) {
-        throw new Error("El alias no puede superar 80 caracteres");
-      }
+    const alias = trimOptional(input.patch.display_alias ?? undefined);
+    if (alias && alias.length > 80) {
+      throw new Error("El alias no puede superar 80 caracteres");
+    }
+    if (recordProfileChange(changes, "display_alias", existing.displayAlias, alias)) {
       data.displayAlias = alias;
     }
   }
 
-  if (
-    input.patch.email !== undefined &&
-    shouldOverwriteField({
-      existing: existing.email,
-      incoming: input.patch.email,
-      profileUpdatedBy: updatedBy
-    })
-  ) {
-    data.email = trimOptional(input.patch.email ?? undefined);
+  if (input.patch.email !== undefined) {
+    const email = trimOptional(input.patch.email ?? undefined);
+    if (recordProfileChange(changes, "email", existing.email, email)) {
+      data.email = email;
+    }
   }
 
-  if (
-    input.patch.tax_id !== undefined &&
-    shouldOverwriteField({
-      existing: existing.taxId,
-      incoming: input.patch.tax_id,
-      profileUpdatedBy: updatedBy
-    })
-  ) {
-    data.taxId = validateOptionalRut(input.patch.tax_id);
+  if (input.patch.tax_id !== undefined) {
+    const taxId = validateOptionalRut(input.patch.tax_id);
+    if (recordProfileChange(changes, "tax_id", existing.taxId, taxId)) {
+      data.taxId = taxId;
+    }
   }
 
-  if (
-    input.patch.invoice_type !== undefined &&
-    shouldOverwriteField({
-      existing: existing.invoiceType,
-      incoming: input.patch.invoice_type,
-      profileUpdatedBy: updatedBy
-    })
-  ) {
-    data.invoiceType = input.patch.invoice_type;
+  if (input.patch.invoice_type !== undefined) {
+    if (recordProfileChange(changes, "invoice_type", existing.invoiceType, input.patch.invoice_type)) {
+      data.invoiceType = input.patch.invoice_type;
+    }
   }
 
-  if (
-    input.patch.company_name !== undefined &&
-    shouldOverwriteField({
-      existing: existing.companyName,
-      incoming: input.patch.company_name,
-      profileUpdatedBy: updatedBy
-    })
-  ) {
-    data.companyName = trimOptional(input.patch.company_name ?? undefined);
+  if (input.patch.company_name !== undefined) {
+    const companyName = trimOptional(input.patch.company_name ?? undefined);
+    if (recordProfileChange(changes, "company_name", existing.companyName, companyName)) {
+      data.companyName = companyName;
+    }
   }
 
-  if (
-    input.patch.business_activity !== undefined &&
-    shouldOverwriteField({
-      existing: existing.businessActivity,
-      incoming: input.patch.business_activity,
-      profileUpdatedBy: updatedBy
-    })
-  ) {
-    data.businessActivity = trimOptional(input.patch.business_activity ?? undefined);
+  if (input.patch.business_activity !== undefined) {
+    const activity = trimOptional(input.patch.business_activity ?? undefined);
+    if (recordProfileChange(changes, "business_activity", existing.businessActivity, activity)) {
+      data.businessActivity = activity;
+    }
   }
 
   const stringFieldMap: Array<{
@@ -283,48 +277,59 @@ export async function patchCustomerProfile(input: {
 
   for (const field of stringFieldMap) {
     const incoming = input.patch[field.patchKey];
-    if (
-      incoming !== undefined &&
-      shouldOverwriteField({
-        existing: field.existing,
-        incoming,
-        profileUpdatedBy: updatedBy
-      })
-    ) {
-      (data as Record<string, unknown>)[field.prismaKey as string] = trimOptional(
-        (incoming as string | null) ?? undefined
-      );
+    if (incoming === undefined) continue;
+    const next = trimOptional((incoming as string | null) ?? undefined);
+    if (recordProfileChange(changes, field.patchKey, field.existing, next)) {
+      (data as Record<string, unknown>)[field.prismaKey as string] = next;
     }
   }
 
-  if (
-    input.patch.billing_same_as_delivery !== undefined &&
-    shouldOverwriteField({
-      existing: existing.billingSameAsDelivery,
-      incoming: input.patch.billing_same_as_delivery,
-      profileUpdatedBy: updatedBy
-    })
-  ) {
-    data.billingSameAsDelivery = input.patch.billing_same_as_delivery;
+  if (input.patch.billing_same_as_delivery !== undefined) {
+    if (
+      recordProfileChange(
+        changes,
+        "billing_same_as_delivery",
+        existing.billingSameAsDelivery,
+        input.patch.billing_same_as_delivery
+      )
+    ) {
+      data.billingSameAsDelivery = input.patch.billing_same_as_delivery;
+    }
   }
 
   if (input.patch.profile_metadata !== undefined) {
-    const merged = {
-      ...asRecord(existing.profileMetadata),
-      ...asRecord(input.patch.profile_metadata)
-    };
-    data.profileMetadata = merged as Prisma.InputJsonValue;
+    const existingMeta = asRecord(existing.profileMetadata);
+    const incomingMeta = asRecord(input.patch.profile_metadata);
+    let metaChanged = false;
+    for (const [key, incoming] of Object.entries(incomingMeta)) {
+      if (GARAGE_METADATA_KEYS.has(key)) {
+        if (JSON.stringify(existingMeta[key] ?? null) !== JSON.stringify(incoming ?? null)) {
+          metaChanged = true;
+        }
+        continue;
+      }
+      if (recordProfileChange(changes, key, existingMeta[key], incoming)) {
+        metaChanged = true;
+      }
+    }
+    if (metaChanged) {
+      data.profileMetadata = {
+        ...existingMeta,
+        ...incomingMeta
+      } as Prisma.InputJsonValue;
+    }
   }
 
   if (Object.keys(data).length === 0) {
-    return existing;
+    return { customer: existing, changes: [] };
   }
 
   data.profileUpdatedAt = new Date();
   data.profileUpdatedBy = updatedBy;
 
-  return prisma.customer.update({
+  const customer = await db.customer.update({
     where: { id: existing.id },
     data
   });
+  return { customer, changes };
 }

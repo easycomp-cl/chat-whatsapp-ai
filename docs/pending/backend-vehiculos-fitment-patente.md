@@ -128,7 +128,9 @@ Acciones que dejan globo:
 | Quién | Acción | kind |
 |-------|--------|------|
 | Bot | Extrae nombre, RUT, patente, etc. del mensaje | `profile_saved` |
-| Asesor | `PATCH /businesses/:id/customers/:customerId` (enviar `conversation_id` si está en el inbox) | `profile_updated` |
+| Asesor | `PATCH /businesses/:id/customers/:customerId` (enviar `conversation_id` del chat abierto) | `profile_updated` |
+
+El `PATCH` del asesor persiste el globo como `Message` `SYSTEM` (`appearance: blue_pill`) con `added` / `modified` y valores reales. Puede pisar email/nombre ya cargados. Si `conversation_id` no es de ese contacto → 400. Si el insert del globo falla → no hay 200 (rollback). Nombre/apellido van en `profile_metadata.first_name` / `last_name`.
 | Bot | Deriva a humano | `handoff` |
 | Asesor | Cambia modo a HUMAN / BOT | `handoff` / `mode_changed` |
 | Bot o asesor | Consulta patente o identifica vehículo | `plate_lookup` / `vehicle_identified` |

@@ -195,7 +195,7 @@ export class ResponsePipelineService {
         incomingText: input.incomingText
       });
       if (quoteSend.sent) {
-        await systemEventService.append({
+        await systemEventService.appendSafe({
           tenantId: input.tenant.id,
           conversationId: input.conversation.id,
           customerId: input.customer.id,
@@ -491,7 +491,7 @@ export class ResponsePipelineService {
       accessToken: input.channel.accessToken
     });
     const outboundMessageId = await this.persistBotReply(input, result.reply, false);
-    await systemEventService.append({
+    await systemEventService.appendSafe({
       tenantId: input.tenant.id,
       conversationId: input.conversation.id,
       customerId: input.customer.id,

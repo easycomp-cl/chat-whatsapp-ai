@@ -4,7 +4,11 @@ import { prisma } from "../../lib/prisma.js";
 import { isValidChileanRut, normalizeRutStorage } from "../../utils/chilean-rut.js";
 import { extractChileanPlates } from "../../utils/chilean-plate.js";
 import { systemEventService } from "../conversations/system-event.service.js";
-import { buildSystemEvent, describeProfileEventFields } from "../conversations/system-event-copy.js";
+import {
+  buildSystemEvent,
+  describeProfileChanges,
+  type ProfileFieldChange
+} from "../conversations/system-event-copy.js";
 import { extractVehicleVins } from "../vehicles/vehicle-vin.client.js";
 import {
   readCustomerGarage,
@@ -146,46 +150,48 @@ export class CustomerProfileExtractService {
 
     let garage = readCustomerGarage(customer.profileMetadata);
     const patch: CustomerProfilePatch = { profile_updated_by: "BOT" };
-    const changed: string[] = [];
-    const values: Record<string, string> = {};
+    const changes: ProfileFieldChange[] = [];
 
     if (facts.display_alias) {
       const existing = customer.displayAlias?.trim() ?? "";
       if (!existing || facts.display_alias.length > existing.length) {
         patch.display_alias = facts.display_alias;
-        changed.push("display_alias");
-        values.display_alias = facts.display_alias;
+        changes.push({
+          field: "display_alias",
+          previous: existing || null,
+          next: facts.display_alias
+        });
       }
     }
     if (facts.first_name && (!garage.first_name || facts.first_name.length >= garage.first_name.length)) {
+      if (garage.first_name !== facts.first_name) {
+        changes.push({
+          field: "first_name",
+          previous: garage.first_name,
+          next: facts.first_name
+        });
+      }
       garage = { ...garage, first_name: facts.first_name };
-      changed.push("first_name");
-      values.first_name = facts.first_name;
     }
     if (facts.last_name && !garage.last_name) {
       garage = { ...garage, last_name: facts.last_name };
-      changed.push("last_name");
-      values.last_name = facts.last_name;
+      changes.push({ field: "last_name", previous: null, next: facts.last_name });
     }
     if (facts.tax_id && !customer.taxId?.trim()) {
       patch.tax_id = facts.tax_id;
-      changed.push("tax_id");
-      values.tax_id = facts.tax_id;
+      changes.push({ field: "tax_id", previous: null, next: facts.tax_id });
     }
     if (facts.email && !customer.email?.trim()) {
       patch.email = facts.email;
-      changed.push("email");
-      values.email = facts.email;
+      changes.push({ field: "email", previous: null, next: facts.email });
     }
     if (facts.delivery1_line1 && !customer.delivery1Line1?.trim()) {
       patch.delivery1_line1 = facts.delivery1_line1;
-      changed.push("delivery1_line1");
-      values.delivery1_line1 = facts.delivery1_line1;
+      changes.push({ field: "delivery1_line1", previous: null, next: facts.delivery1_line1 });
     }
     if (facts.delivery1_commune && !customer.delivery1Commune?.trim()) {
       patch.delivery1_commune = facts.delivery1_commune;
-      changed.push("delivery1_commune");
-      values.delivery1_commune = facts.delivery1_commune;
+      changes.push({ field: "delivery1_commune", previous: null, next: facts.delivery1_commune });
     }
 
     const addedPlates: string[] = [];
@@ -195,8 +201,7 @@ export class CustomerProfileExtractService {
       if (!already) addedPlates.push(plate);
     }
     if (addedPlates.length) {
-      changed.push("vehicle_plate");
-      values.vehicle_plate = addedPlates.join(", ");
+      changes.push({ field: "vehicle_plate", previous: null, next: addedPlates.join(", ") });
     }
 
     const addedVins: string[] = [];
@@ -206,8 +211,7 @@ export class CustomerProfileExtractService {
       if (!already) addedVins.push(vin);
     }
     if (addedVins.length) {
-      changed.push("vin");
-      values.vin = addedVins.join(", ");
+      changes.push({ field: "vin", previous: null, next: addedVins.join(", ") });
     }
 
     if (facts.first_name || facts.last_name || addedPlates.length || addedVins.length) {
@@ -215,7 +219,8 @@ export class CustomerProfileExtractService {
     }
 
     const patchKeys = Object.keys(patch).filter((key) => key !== "profile_updated_by");
-    if (patchKeys.length === 0 || changed.length === 0) {
+    const described = describeProfileChanges(changes);
+    if (patchKeys.length === 0 || changes.length === 0 || !described.body) {
       return { saved: false, fields: [] };
     }
 
@@ -225,19 +230,19 @@ export class CustomerProfileExtractService {
       patch
     });
 
-    await systemEventService.append({
+    await systemEventService.appendSafe({
       tenantId: input.tenantId,
       conversationId: input.conversationId,
       customerId: input.customerId,
       customerPhone: input.customerPhone,
-      event: buildSystemEvent("profile_saved", "BOT", describeProfileEventFields(changed, values), {
-        fields: changed,
-        values,
+      event: buildSystemEvent("profile_saved", "BOT", described.body, {
+        added: described.added,
+        modified: described.modified,
         source: "inbound_extract"
       })
     });
 
-    return { saved: true, fields: changed };
+    return { saved: true, fields: changes.map((change) => change.field) };
   }
 }
 

@@ -167,7 +167,36 @@ Si `status` es `not_found` / `invalid_plate` / `provider_not_configured` → **n
 }
 ```
 
-Globo azul `profile_updated` / `actor: HUMAN`.
+Nombre y apellido van en `profile_metadata` (no sueltos; el schema es `.strict()`):
+
+```json
+{
+  "profile_metadata": { "first_name": "Camila", "last_name": "Soto" },
+  "conversation_id": "<id del chat abierto>",
+  "profile_updated_by": "BUSINESS_ADMIN"
+}
+```
+
+El backend persiste un `Message` `SYSTEM` / `SYSTEM_EVENT` (`appearance: "blue_pill"`). Al recargar el chat la píldora sigue ahí. Si `conversation_id` no es de ese contacto, responde **400**. Si no puede guardar el globo, el `PATCH` **no** responde 200 (rollback del cambio).
+
+`system_event.payload` para armar el globo:
+
+```ts
+{
+  actor: "HUMAN",
+  appearance: "blue_pill",
+  actor_name: "EasyComp Repuestos", // nombre del negocio; el bot no lo manda
+  added: ["email: nuevo@correo.com"],
+  modified: ["nombre visible: Israel -> Isra"]
+}
+```
+
+- **se añadió:** valor nuevo.
+- **se modificó:** `campo: anterior -> nuevo`.
+- `content_text` de respaldo: `"El asesor guardó un dato del contacto: se modificó: …"`.
+- Sin cambio real de valor → no hay píldora.
+- El asesor **puede** pisar un email/nombre ya cargado.
+- Nunca va a WhatsApp ni cuenta como no leído.
 
 ## APIs del panel
 

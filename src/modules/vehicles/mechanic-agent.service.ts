@@ -119,7 +119,7 @@ export class MechanicAgentService {
         status: lookup.status
       };
       const found = vehicleCardHasData(card);
-      await systemEventService.append({
+      await systemEventService.appendSafe({
         tenantId: input.tenantId,
         conversationId: input.conversationId,
         customerId: input.customerId,
@@ -142,7 +142,7 @@ export class MechanicAgentService {
         customerId: input.customerId,
         decoded
       });
-      await systemEventService.append({
+      await systemEventService.appendSafe({
         tenantId: input.tenantId,
         conversationId: input.conversationId,
         customerId: input.customerId,
@@ -169,7 +169,7 @@ export class MechanicAgentService {
         customerId: input.customerId,
         vehicle
       });
-      await systemEventService.append({
+      await systemEventService.appendSafe({
         tenantId: input.tenantId,
         conversationId: input.conversationId,
         customerId: input.customerId,
@@ -279,7 +279,7 @@ export class MechanicAgentService {
           .slice(0, 4)
           .map((item) => `${item.part_label}: ${item.sku ?? item.name}`)
           .join("; ");
-        await systemEventService.append({
+        await systemEventService.appendSafe({
           tenantId: input.tenantId,
           conversationId: input.conversationId,
           customerId: input.customerId,

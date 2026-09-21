@@ -41,7 +41,10 @@
         { "name": "SUPABASE_URL", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:SUPABASE_URL::" },
         { "name": "SUPABASE_SERVICE_ROLE_KEY", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:SUPABASE_SERVICE_ROLE_KEY::" },
         { "name": "SUPABASE_FLOW_FILES_BUCKET", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:SUPABASE_FLOW_FILES_BUCKET::" },
-        { "name": "SUPABASE_CHAT_MEDIA_BUCKET", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:SUPABASE_CHAT_MEDIA_BUCKET::" }
+        { "name": "SUPABASE_CHAT_MEDIA_BUCKET", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:SUPABASE_CHAT_MEDIA_BUCKET::" },
+        { "name": "VEHICLE_PLATE_API_URL", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:VEHICLE_PLATE_API_URL::" },
+        { "name": "VEHICLE_PLATE_API_KEY", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:VEHICLE_PLATE_API_KEY::" },
+        { "name": "VEHICLE_PLATE_PROVIDER", "valueFrom": "arn:aws:secretsmanager:sa-east-1:024848463506:secret:chat-whatsapp-ai/staging-FD26yQ:VEHICLE_PLATE_PROVIDER::" }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",

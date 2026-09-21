@@ -19,7 +19,12 @@ import {
 } from "../src/modules/customers/customer-garage.js";
 import { looksLikeVehicleQuery } from "../src/modules/vehicles/mechanic-agent.service.js";
 import { readStoredSystemEvent } from "../src/modules/conversations/system-event.types.js";
-import { systemEventTitle, formatVehicleCardBody, buildSystemEvent } from "../src/modules/conversations/system-event-copy.js";
+import {
+  systemEventTitle,
+  formatVehicleCardBody,
+  buildSystemEvent,
+  describeProfileChanges
+} from "../src/modules/conversations/system-event-copy.js";
 import { toChatTurns } from "../src/modules/runtime/conversation-history.js";
 import { formatCustomerMemory } from "../src/modules/runtime/customer-memory.js";
 import { buildRuntimeSystemPrompt } from "../src/modules/runtime/prompts.js";
@@ -152,6 +157,28 @@ describe("system events", () => {
     expect(event.title).toBe("Vehículo del contacto");
     expect(event.body).toContain("Toyota Hilux 2018");
     expect(event.body).not.toMatch(/rut|dueño|owner/i);
+  });
+
+  it("describes added and modified profile values for the blue pill", () => {
+    const added = describeProfileChanges([
+      { field: "email", previous: null, next: "nuevo@correo.com" }
+    ]);
+    expect(added.added).toEqual(["email: nuevo@correo.com"]);
+    expect(added.body).toBe("se añadió: email: nuevo@correo.com");
+
+    const modified = describeProfileChanges([
+      { field: "display_alias", previous: "Israel", next: "Isra" }
+    ]);
+    expect(modified.modified).toEqual(["nombre visible: Israel -> Isra"]);
+    expect(modified.body).toBe("se modificó: nombre visible: Israel -> Isra");
+
+    const names = describeProfileChanges([
+      { field: "first_name", previous: null, next: "Camila" },
+      { field: "last_name", previous: null, next: "Soto" }
+    ]);
+    expect(names.body).toContain("nombre: Camila");
+    expect(names.body).toContain("apellido: Soto");
+    expect(names.body).not.toMatch(/vehículos u otros datos/i);
   });
 
   it("keeps a human actor when stored", () => {

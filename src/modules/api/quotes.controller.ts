@@ -94,7 +94,7 @@ export async function sendConversationQuote(req: Request, res: Response) {
       parsed.data,
       ProductQuoteCreatedBy.HUMAN
     );
-    await systemEventService.appendForConversation(
+    await systemEventService.appendForConversationSafe(
       conversationId,
       buildSystemEvent(
         "quote_prepared",

@@ -134,7 +134,7 @@ export async function patchConversationMode(req: Request, res: Response) {
   }
 
   if (existing.mode !== body.mode) {
-    await systemEventService.appendForConversation(
+    await systemEventService.appendForConversationSafe(
       id,
       body.mode === "HUMAN"
         ? buildSystemEvent(

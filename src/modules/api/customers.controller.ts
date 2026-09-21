@@ -4,12 +4,17 @@ import { prisma } from "../../lib/prisma.js";
 import { setNoStore } from "../../lib/http-cache.js";
 import { paramId } from "../../utils/params.js";
 import {
+  isHumanProfileUpdate,
   patchCustomerProfile,
   serializeCustomerProfile,
   type CustomerProfilePatch
 } from "../customers/customer-profile.service.js";
-import { systemEventService } from "../conversations/system-event.service.js";
-import { buildSystemEvent, describeProfileEventFields } from "../conversations/system-event-copy.js";
+import {
+  ConversationNotForCustomerError,
+  SystemEventPersistError,
+  systemEventService
+} from "../conversations/system-event.service.js";
+import { buildSystemEvent, describeProfileChanges } from "../conversations/system-event-copy.js";
 
 const invoiceTypeSchema = z.enum(["RECEIPT", "INVOICE", "NONE"]).nullable();
 const billingSameSchema = z.enum(["NONE", "DELIVERY_1", "DELIVERY_2"]).nullable();
@@ -107,37 +112,75 @@ export async function patchCustomerProfileHandler(req: Request, res: Response) {
     if (body.billing_same_as_delivery !== undefined) {
       patch.billing_same_as_delivery = body.billing_same_as_delivery;
     }
-    if (body.profile_metadata !== undefined) patch.profile_metadata = body.profile_metadata;
+    if (body.profile_metadata !== undefined) {
+      patch.profile_metadata = body.profile_metadata ?? {};
+    }
     if (body.profile_updated_by !== undefined) patch.profile_updated_by = body.profile_updated_by;
 
-    const changedFields = Object.keys(body).filter(
-      (key) => key !== "profile_updated_by" && key !== "conversation_id"
-    );
-
-    const updated = await patchCustomerProfile({
-      tenantId: businessId,
-      customerId,
-      patch
-    });
-
-    if (changedFields.length > 0 && (body.profile_updated_by ?? "BUSINESS_ADMIN") !== "BOT") {
-      const conversation = await systemEventService.resolveConversationForCustomer({
-        tenantId: businessId,
-        customerId,
-        ...(body.conversation_id ? { conversationId: body.conversation_id } : {})
+    const humanUpdate = isHumanProfileUpdate(body.profile_updated_by ?? "BUSINESS_ADMIN");
+    const tenant = humanUpdate
+      ? await prisma.tenant.findUnique({
+          where: { id: businessId },
+          select: { name: true }
+        })
+      : null;
+    if (humanUpdate && body.conversation_id) {
+      const conversation = await prisma.conversation.findFirst({
+        where: {
+          id: body.conversation_id,
+          tenantId: businessId,
+          customerId
+        },
+        select: { id: true }
       });
-      if (conversation) {
-        await systemEventService.appendForConversation(
-          conversation.id,
-          buildSystemEvent(
-            "profile_updated",
-            "HUMAN",
-            describeProfileEventFields(changedFields),
-            { fields: changedFields, source: "inbox_profile_patch" }
-          )
-        );
+      if (!conversation) {
+        throw new ConversationNotForCustomerError();
       }
     }
+
+    const applyPatch = async (db?: Parameters<typeof patchCustomerProfile>[0]["db"]) => {
+      const result = await patchCustomerProfile({
+        tenantId: businessId,
+        customerId,
+        patch,
+        ...(db ? { db } : {})
+      });
+
+      if (!humanUpdate || result.changes.length === 0) {
+        return result;
+      }
+      if (!body.conversation_id) {
+        throw new ConversationNotForCustomerError(
+          "conversation_id es obligatorio para registrar el cambio en el chat"
+        );
+      }
+
+      const described = describeProfileChanges(result.changes);
+      if (!described.body) {
+        return result;
+      }
+
+      await systemEventService.append(
+        {
+          tenantId: businessId,
+          conversationId: body.conversation_id,
+          customerId,
+          customerPhone: result.customer.phoneNumber,
+          event: buildSystemEvent("profile_updated", "HUMAN", described.body, {
+            ...(tenant?.name ? { actor_name: tenant.name } : {}),
+            added: described.added,
+            modified: described.modified,
+            source: "inbox_profile_patch"
+          })
+        },
+        db ?? prisma
+      );
+      return result;
+    };
+
+    const { customer: updated } = humanUpdate
+      ? await prisma.$transaction((tx) => applyPatch(tx))
+      : await applyPatch();
 
     const tenantConfigJson = await loadTenantConfig(businessId);
     setNoStore(res);
@@ -146,6 +189,14 @@ export async function patchCustomerProfileHandler(req: Request, res: Response) {
     const message = error instanceof Error ? error.message : "Error al actualizar perfil";
     if (message === "Customer not found") {
       res.status(404).json({ error: message });
+      return;
+    }
+    if (error instanceof ConversationNotForCustomerError) {
+      res.status(400).json({ error: message, code: "conversation_not_for_customer" });
+      return;
+    }
+    if (error instanceof SystemEventPersistError) {
+      res.status(500).json({ error: message, code: "system_event_persist_failed" });
       return;
     }
     if (message === "RUT inválido" || message.includes("alias")) {

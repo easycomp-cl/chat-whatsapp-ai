@@ -96,8 +96,14 @@ export function formatVehicleCardBody(fields: VehicleCardFields): string {
   return headline || extras.join(" · ") || "Datos del vehículo guardados.";
 }
 
+export type ProfileFieldChange = {
+  field: string;
+  previous: string | null;
+  next: string | null;
+};
+
 const PROFILE_FIELD_LABELS: Record<string, string> = {
-  display_alias: "nombre",
+  display_alias: "nombre visible",
   first_name: "nombre",
   last_name: "apellido",
   email: "email",
@@ -126,15 +132,47 @@ const PROFILE_FIELD_LABELS: Record<string, string> = {
   vin: "VIN"
 };
 
+export function profileFieldLabel(field: string): string {
+  return PROFILE_FIELD_LABELS[field] ?? field;
+}
+
 export function describeProfileEventFields(
   fields: string[],
   values?: Record<string, string>
 ): string {
   return fields
     .map((field) => {
-      const label = PROFILE_FIELD_LABELS[field] ?? field;
+      const label = profileFieldLabel(field);
       const value = values?.[field];
       return value ? `${label}: ${value}` : label;
     })
     .join(", ");
+}
+
+export function describeProfileChanges(changes: ProfileFieldChange[]): {
+  added: string[];
+  modified: string[];
+  body: string;
+} {
+  const added: string[] = [];
+  const modified: string[] = [];
+
+  for (const change of changes) {
+    const label = profileFieldLabel(change.field);
+    const previous = change.previous?.trim() || "";
+    const next = change.next?.trim() || "";
+    if (!previous && !next) continue;
+    if (!previous && next) {
+      added.push(`${label}: ${next}`);
+      continue;
+    }
+    if (previous !== next) {
+      modified.push(`${label}: ${previous} -> ${next || "(vacío)"}`);
+    }
+  }
+
+  const parts: string[] = [];
+  if (added.length) parts.push(`se añadió: ${added.join(", ")}`);
+  if (modified.length) parts.push(`se modificó: ${modified.join(", ")}`);
+  return { added, modified, body: parts.join(". ") };
 }
