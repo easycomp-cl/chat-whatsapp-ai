@@ -66,8 +66,18 @@ export class SystemEventService {
         }
       });
     } catch (error) {
-      logger.error({ err: error, conversationId: input.conversationId }, "Failed to append system event");
-      throw new SystemEventPersistError();
+      const prismaCode =
+        error && typeof error === "object" && "code" in error ? String(error.code) : undefined;
+      const prismaMessage = error instanceof Error ? error.message : undefined;
+      logger.error(
+        { err: error, prismaCode, prismaMessage, conversationId: input.conversationId },
+        "Failed to append system event"
+      );
+      throw new SystemEventPersistError(
+        prismaMessage?.includes("SYSTEM_EVENT")
+          ? "Falta el tipo SYSTEM_EVENT en la base. Hay que aplicar la migración de globos de sistema."
+          : undefined
+      );
     }
   }
 
