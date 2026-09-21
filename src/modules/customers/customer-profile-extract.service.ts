@@ -15,6 +15,8 @@ import {
   upsertGarageVehicle,
   writeCustomerGarage
 } from "./customer-garage.js";
+import { extractNeedFromText } from "../runtime/qualification.js";
+import { extractDeliveryFromText } from "../quotes/product-quote.utils.js";
 
 const NAME_STOPWORDS = new Set([
   "hola",
@@ -44,7 +46,12 @@ const NAME_STOPWORDS = new Set([
   "un",
   "una",
   "de",
-  "del"
+  "del",
+  "aca",
+  "acá",
+  "aqui",
+  "aquí",
+  "por"
 ]);
 
 const EMAIL_RE = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
@@ -73,6 +80,22 @@ function isPlausiblePersonName(value: string): boolean {
   });
 }
 
+function extractPersonName(text: string): string | null {
+  const patterns = [
+    /(?:me llamo|mi nombre es)\s+([a-záéíóúñü']+(?:\s+[a-záéíóúñü']+){0,2})/i,
+    /\bsoy\s+([a-záéíóúñü']+(?:\s+[a-záéíóúñü']+){0,2})(?=\s*[,.]|\s+(?:y|necesito|quiero|busco|me|de|del|hola)\b|$)/i,
+    /(?:habla|hablo|te habla|te escribo)\s+([a-záéíóúñü']+(?:\s+[a-záéíóúñü']+){0,2})/i,
+    /^([a-záéíóúñü']{2,20})\s+por\s+ac[aá](?:\s*[,.]|\s+|$)/i
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1] && isPlausiblePersonName(match[1])) {
+      return titleCaseName(match[1]);
+    }
+  }
+  return null;
+}
+
 export type ExtractedCustomerFacts = {
   display_alias?: string;
   first_name?: string;
@@ -83,6 +106,8 @@ export type ExtractedCustomerFacts = {
   delivery1_commune?: string;
   vehicle_plates?: string[];
   vins?: string[];
+  last_need?: string;
+  delivery_preference?: "pickup" | "delivery";
 };
 
 export function extractCustomerFactsFromText(text: string): ExtractedCustomerFacts {
@@ -103,11 +128,8 @@ export function extractCustomerFactsFromText(text: string): ExtractedCustomerFac
   const vins = extractVehicleVins(trimmed);
   if (vins.length) facts.vins = vins;
 
-  const nameMatch = trimmed.match(
-    /(?:me llamo|mi nombre es|soy)\s+([a-záéíóúñü']+(?:\s+[a-záéíóúñü']+){0,2})/i
-  );
-  if (nameMatch?.[1] && isPlausiblePersonName(nameMatch[1])) {
-    const full = titleCaseName(nameMatch[1]);
+  const full = extractPersonName(trimmed);
+  if (full) {
     const parts = full.split(" ").filter(Boolean);
     facts.display_alias = full;
     if (parts[0]) facts.first_name = parts[0];
@@ -122,6 +144,14 @@ export function extractCustomerFactsFromText(text: string): ExtractedCustomerFac
     const pieces = raw.split(",").map((part) => part.trim()).filter(Boolean);
     if (pieces[0]) facts.delivery1_line1 = pieces[0];
     if (pieces[1]) facts.delivery1_commune = pieces[1];
+  }
+
+  const need = extractNeedFromText(trimmed);
+  if (need) facts.last_need = need;
+
+  const delivery = extractDeliveryFromText(trimmed);
+  if (delivery.method === "pickup" || delivery.method === "delivery") {
+    facts.delivery_preference = delivery.method;
   }
 
   return facts;
@@ -214,8 +244,60 @@ export class CustomerProfileExtractService {
       changes.push({ field: "vin", previous: null, next: addedVins.join(", ") });
     }
 
-    if (facts.first_name || facts.last_name || addedPlates.length || addedVins.length) {
-      patch.profile_metadata = writeCustomerGarage(customer.profileMetadata, garage);
+    const metaBase =
+      patch.profile_metadata && typeof patch.profile_metadata === "object"
+        ? patch.profile_metadata
+        : writeCustomerGarage(customer.profileMetadata, garage);
+    const metaRecord =
+      metaBase && typeof metaBase === "object" && !Array.isArray(metaBase)
+        ? { ...(metaBase as Record<string, unknown>) }
+        : {};
+
+    const previousNeed =
+      typeof metaRecord.last_need === "string" ? metaRecord.last_need.trim() : "";
+    if (facts.last_need && facts.last_need !== previousNeed) {
+      metaRecord.last_need = facts.last_need;
+      changes.push({
+        field: "last_need",
+        previous: previousNeed || null,
+        next: facts.last_need
+      });
+    }
+
+    const previousDelivery =
+      typeof metaRecord.delivery_preference === "string"
+        ? metaRecord.delivery_preference.trim()
+        : "";
+    if (facts.delivery_preference && facts.delivery_preference !== previousDelivery) {
+      metaRecord.delivery_preference = facts.delivery_preference;
+      changes.push({
+        field: "delivery_preference",
+        previous: previousDelivery || null,
+        next: facts.delivery_preference === "pickup" ? "retiro" : "despacho"
+      });
+    }
+
+    const metadataTouched =
+      Boolean(facts.first_name) ||
+      Boolean(facts.last_name) ||
+      addedPlates.length > 0 ||
+      addedVins.length > 0 ||
+      Boolean(facts.last_need) ||
+      Boolean(facts.delivery_preference);
+
+    if (metadataTouched) {
+      patch.profile_metadata = writeCustomerGarage(metaRecord, {
+        ...garage,
+        first_name: garage.first_name,
+        last_name: garage.last_name
+      });
+      if (facts.last_need) {
+        (patch.profile_metadata as Record<string, unknown>).last_need = facts.last_need;
+      }
+      if (facts.delivery_preference) {
+        (patch.profile_metadata as Record<string, unknown>).delivery_preference =
+          facts.delivery_preference;
+      }
     }
 
     const patchKeys = Object.keys(patch).filter((key) => key !== "profile_updated_by");

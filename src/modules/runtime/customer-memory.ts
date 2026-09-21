@@ -11,7 +11,9 @@ const METADATA_LABELS: Record<string, string> = {
   birthday: "Cumpleaños",
   notes: "Notas",
   last_name: "Apellido",
-  active_vehicle_plate: "Patente"
+  active_vehicle_plate: "Patente",
+  last_need: "Necesidad",
+  delivery_preference: "Preferencia de entrega"
 };
 
 type CustomerMemorySource = {
@@ -80,8 +82,11 @@ export function formatCustomerMemory(customer: CustomerMemorySource | null | und
     ) {
       continue;
     }
-    const value = String(raw).trim();
+    let value = String(raw).trim();
     if (!value) continue;
+    if (key === "delivery_preference") {
+      value = value === "pickup" ? "retiro" : value === "delivery" ? "despacho" : value;
+    }
     const label = METADATA_LABELS[key] ?? key.replace(/_/g, " ");
     lines.push(`${label}: ${value}`);
   }

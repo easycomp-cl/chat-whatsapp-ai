@@ -48,7 +48,16 @@ describe("buildConversationalReply", () => {
   it("uses configured greeting message", () => {
     const reply = buildConversationalReply("greeting", baseConfig);
     expect(reply).toContain("Hola, soy Sol de Panadería Sol.");
+    expect(reply).toContain("¿Me dices tu nombre y en qué te puedo ayudar?");
+  });
+
+  it("asks only for help when the customer name is known", () => {
+    const reply = buildConversationalReply("greeting", {
+      ...baseConfig,
+      customerName: "Camila"
+    });
     expect(reply).toContain("¿En qué te puedo ayudar hoy?");
+    expect(reply).not.toContain("¿Me dices tu nombre");
   });
 
   it("uses tone greeting when provided", () => {

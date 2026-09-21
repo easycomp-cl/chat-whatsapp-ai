@@ -264,7 +264,7 @@ export class MechanicAgentService {
       contextParts.push(`Vehículo identificado: ${vehicleLabel(vehicle)}. Sin contrastar stock todavía.`);
     } else if (looksLikeVehicleQuery(input.text)) {
       contextParts.push(
-        "El cliente habla de un vehículo o repuesto, pero falta marca/modelo/año o patente para confirmar fitment. No inventar compatibilidad."
+        "PRIORIDAD ANTI-ALUCINACIÓN: falta patente o marca/modelo/año. Pide la patente de forma cordial y lúdica. PROHIBIDO listar SKUs, precios o afirmar que un repuesto calza. Si no tiene patente, pide marca, modelo y año."
       );
     }
 

@@ -1,6 +1,7 @@
 import type { GreetingWarmth } from "../modules/chat-analysis/types/greeting-config.type.js";
 import type { ConversationalConfig } from "../modules/runtime/types/conversational-response.type.js";
 import { pickConversationalResponse } from "../modules/runtime/conversational-response.service.js";
+import { buildQualificationGreeting } from "../modules/runtime/qualification.js";
 import {
   isGreetingLike,
   isGreetingWithBusinessQuestion,
@@ -100,17 +101,23 @@ export function buildConversationalReply(
       ...(config.fallbackMessage ? { fallbackMessage: config.fallbackMessage } : {})
     });
     if (reply) return reply;
-  } else {
-    const reply = pickConversationalResponse({
-      trigger: intent,
-      config: conversationalConfig,
-      warmth,
-      conversationId: config.conversationId,
-      placeholders,
-      ...(config.fallbackMessage ? { fallbackMessage: config.fallbackMessage } : {})
+    return buildQualificationGreeting({
+      saludo,
+      hasName: Boolean(config.customerName?.trim()),
+      isReturning: Boolean(config.isReturningCustomer),
+      ...(config.customerName ? { name: config.customerName } : {})
     });
-    if (reply) return reply;
   }
+
+  const reply = pickConversationalResponse({
+    trigger: intent,
+    config: conversationalConfig,
+    warmth,
+    conversationId: config.conversationId,
+    placeholders,
+    ...(config.fallbackMessage ? { fallbackMessage: config.fallbackMessage } : {})
+  });
+  if (reply) return reply;
 
   return `${saludo} ¿En qué te puedo ayudar hoy?`;
 }

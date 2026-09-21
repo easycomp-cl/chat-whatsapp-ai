@@ -20,6 +20,9 @@ export function buildRuntimeSystemPrompt(input: {
   greetingStyleHint?: string;
   customerMemory?: string;
   vehicleContext?: string;
+  qualificationBlock?: string;
+  /** When true, suppress listing replacement SKUs until vehicle/fitment is known. */
+  blockPartsCatalogUntilVehicle?: boolean;
 }) {
   const phrases = input.commonPhrases?.length
     ? `Puedes usar expresiones como: ${input.commonPhrases.join(", ")}.`
@@ -58,26 +61,35 @@ export function buildRuntimeSystemPrompt(input: {
     ? `DATOS DEL CLIENTE (no los contradigas; no pidas de nuevo un dato ya conocido):\n${input.customerMemory.trim()}`
     : "";
   const vehicleBlock = input.vehicleContext?.trim()
-    ? `CONTEXTO VEHÍCULO / AGENTE MECÁNICA (beta):\n${input.vehicleContext.trim()}\nSolo afirma que un repuesto sirve a un modelo si aparece en este bloque. Si no está, pide patente o marca/modelo/año y no inventes fitment. Si hay match, dilo como "según nuestra base beta" y contrasta con el stock listado.`
+    ? `CONTEXTO VEHÍCULO / AGENTE MECÁNICA (beta):\n${input.vehicleContext.trim()}\nSolo afirma que un repuesto sirve a un modelo si aparece en este bloque. Si no está, pide patente (preferente) o marca/modelo/año y no inventes fitment. Si hay match, dilo como "según nuestra base beta" y contrasta con el stock listado.`
     : "";
+  const qualificationBlock = input.qualificationBlock?.trim()
+    ? input.qualificationBlock.trim()
+    : "";
+
+  const catalogRule = input.blockPartsCatalogUntilVehicle
+    ? "RESTRICCIÓN ACTIVA: no menciones SKUs ni precios de repuestos del catálogo hasta identificar el vehículo. Ignora listados de productos en CONTEXTO CONFIABLE para esta respuesta; pide la patente primero."
+    : "Si no hay el producto exacto y el vehículo ya está identificado, ofrece 1 o 2 alternativas de la misma categoría que sí estén en el contexto y pide el dato que falta.";
 
   return `
 Eres ${input.botName}, asistente del negocio ${input.businessName}.
-Responde solamente usando la información entregada en CONTEXTO CONFIABLE y DATOS DEL CLIENTE.
+Responde solamente usando la información entregada en DATOS DEL CLIENTE, CONTEXTO VEHÍCULO y CONTEXTO CONFIABLE.
 Usa el historial de la conversación para resolver referencias ("ese", "la misma", "lo de siempre") y recordar pedidos, alergias, pagos y preferencias.
-No inventes precios, stock, políticas ni disponibilidad.
+No inventes precios, stock, políticas, compatibilidad ni disponibilidad.
 No afirmes que una pieza calza en un vehículo si eso no está en el contexto.
-Si el cliente hace varias preguntas en un mismo mensaje, respóndelas todas, punto por punto, con SKU y precio cuando estén en el contexto.
-Si no hay el producto exacto, ofrece 1 o 2 alternativas de la misma categoría que sí estén en el contexto y pide el dato que falta (SKU, viscosidad, marca/modelo/año o una foto).
+Si el cliente hace varias preguntas en un mismo mensaje, respóndelas todas, punto por punto, con SKU y precio solo cuando estén confirmados en el contexto.
+${catalogRule}
 No prometas cosas que no estén en el contexto.
 No respondas temas fuera del negocio.
 No anuncies que derivarás a un asesor salvo que el cliente pida una persona, reclame, pida garantía/devolución o entregue datos de tarjeta.
 Si falta información, pregunta de forma concreta. No te rindas a la primera.
-Si el cliente pide cotización y ya hay productos con precio en el contexto, confirma SKU, cantidad y total, y ofrece armar la cotización en PDF. Pregunta si prefiere retiro o despacho.
+Si el cliente pide cotización y ya hay productos con precio confirmados para su vehículo en el contexto, confirma SKU, cantidad y total, y ofrece armar la cotización en PDF. Pregunta si prefiere retiro o despacho.
 Mantén un tono ${input.botTone}, cercano, claro y profesional.
 ${phrases}
 ${styleHints.join(" ")}
 Responde siempre en español.
+
+${qualificationBlock}
 
 ${customerBlock}
 

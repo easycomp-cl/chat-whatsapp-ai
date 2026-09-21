@@ -47,9 +47,19 @@ import {
 } from "./conversation-history.js";
 import { formatCustomerMemory } from "./customer-memory.js";
 import { productQuoteService } from "../quotes/product-quote.service.js";
-import { mechanicAgentService } from "../vehicles/mechanic-agent.service.js";
+import {
+  isMechanicAgentEnabled,
+  looksLikeVehicleQuery,
+  mechanicAgentService
+} from "../vehicles/mechanic-agent.service.js";
 import { systemEventService } from "../conversations/system-event.service.js";
 import { buildSystemEvent } from "../conversations/system-event-copy.js";
+import {
+  buildQualificationState,
+  hasVehicleIdentity,
+  resolveKnownPersonName
+} from "./qualification.js";
+import { readCustomerGarage } from "../customers/customer-garage.js";
 
 const BOT_SETUP_MESSAGE =
   "Hola. Estamos configurando nuestro asistente. Te responderemos muy pronto.";
@@ -167,12 +177,17 @@ export class ResponsePipelineService {
       tenantConfigJson: configJson
     });
 
+    const knownPersonName = resolveKnownPersonName({
+      displayAlias: input.customer.displayAlias,
+      name: input.customer.name
+    });
+
     const conversationalContext = {
       greetingMessage: input.tenant.config.greetingMessage,
       botName: input.tenant.config.botName,
       businessName: input.tenant.name,
       toneGreeting,
-      customerName: resolveCustomerDisplayName(input.customer),
+      ...(knownPersonName ? { customerName: knownPersonName } : {}),
       isReturningCustomer,
       conversationId: input.conversation.id,
       conversationalConfig,
@@ -219,26 +234,6 @@ export class ResponsePipelineService {
       );
     }
 
-    const faqMatch = await faqEngine.findMatch(input.tenant.id, input.incomingText);
-    if (
-      faqMatch &&
-      !shouldBypassFaqMatch(input.incomingText, faqMatch.question, faqMatch.answer) &&
-      !isAnaphoricFollowUp(input.incomingText)
-    ) {
-      const faqReply =
-        hybridGreetingMessage && greetingConfig.combine_greeting_with_answers
-          ? `${toneGreeting} ${faqMatch.answer}`
-          : faqMatch.answer;
-      const outboundMessageId = await this.persistBotReply(input, faqReply, false);
-      await usageEventsService.track({
-        tenantId: input.tenant.id,
-        conversationId: input.conversation.id,
-        eventType: USAGE_EVENT_TYPES.FAQ_RESPONSE_SENT,
-        metadata: { faqId: faqMatch.id, matchType: faqMatch.matchType, score: faqMatch.score }
-      });
-      return { reply: faqReply, outboundMessageId, mode: "bot" };
-    }
-
     const knowledgeConfig = parseTenantKnowledgeConfig(input.tenant.config?.configJson);
     const [history, customerRow] = await Promise.all([
       getConversationHistory({
@@ -262,6 +257,38 @@ export class ResponsePipelineService {
         }
       })
     ]);
+
+    const mechanicEnabled = isMechanicAgentEnabled(configJson);
+    const garageSnapshot = readCustomerGarage(customerRow?.profileMetadata);
+    const vehicleMissingForParts =
+      mechanicEnabled &&
+      looksLikeVehicleQuery(input.incomingText) &&
+      !hasVehicleIdentity({
+        garage: garageSnapshot,
+        incomingText: input.incomingText
+      });
+
+    const faqMatch = await faqEngine.findMatch(input.tenant.id, input.incomingText);
+    if (
+      faqMatch &&
+      !vehicleMissingForParts &&
+      !shouldBypassFaqMatch(input.incomingText, faqMatch.question, faqMatch.answer) &&
+      !isAnaphoricFollowUp(input.incomingText)
+    ) {
+      const faqReply =
+        hybridGreetingMessage && greetingConfig.combine_greeting_with_answers
+          ? `${toneGreeting} ${faqMatch.answer}`
+          : faqMatch.answer;
+      const outboundMessageId = await this.persistBotReply(input, faqReply, false);
+      await usageEventsService.track({
+        tenantId: input.tenant.id,
+        conversationId: input.conversation.id,
+        eventType: USAGE_EVENT_TYPES.FAQ_RESPONSE_SENT,
+        metadata: { faqId: faqMatch.id, matchType: faqMatch.matchType, score: faqMatch.score }
+      });
+      return { reply: faqReply, outboundMessageId, mode: "bot" };
+    }
+
     const ragQuery = buildRetrievalQuery(input.incomingText, history);
     const ragHits = await ragService.retrieve(input.tenant.id, ragQuery);
     const bestScore = ragService.getBestScore(ragHits);
@@ -335,12 +362,25 @@ export class ResponsePipelineService {
       emitEvents: true,
       actor: "BOT"
     });
+    const fitmentReady = Boolean(mechanic.fitment && mechanic.fitment.compatible.length > 0);
+    const qualification = buildQualificationState({
+      displayAlias: customerRow?.displayAlias ?? input.customer.displayAlias,
+      whatsappName: customerRow?.name ?? input.customer.name,
+      profileMetadata: customerRow?.profileMetadata,
+      incomingText: input.incomingText,
+      mechanicEnabled,
+      fitmentReady
+    });
+    const blockPartsCatalog =
+      qualification.mechanicMode && !qualification.vehicleIdentified && !fitmentReady;
     const runtimePromptInput: Parameters<typeof buildRuntimeSystemPrompt>[0] = {
       businessName: input.tenant.name,
       botName: input.tenant.config.botName,
       botTone: input.tenant.config.botTone,
-      knowledge,
+      knowledge: blockPartsCatalog ? "" : knowledge,
       commonPhrases: parseToneCommonPhrases(configJson),
+      qualificationBlock: qualification.promptBlock,
+      blockPartsCatalogUntilVehicle: blockPartsCatalog,
       ...(greetingStyleHint ? { greetingStyleHint } : {}),
       ...(customerMemory ? { customerMemory } : {}),
       ...(mechanic.context ? { vehicleContext: mechanic.context } : {})

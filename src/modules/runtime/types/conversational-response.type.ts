@@ -34,7 +34,7 @@ export const DEFAULT_CONVERSATIONAL_REPLIES: Record<
   Exclude<ConversationalTrigger, "greeting_returning" | "soft_fallback">,
   string
 > = {
-  greeting_pure: "{saludo} ¿En qué te puedo ayudar hoy?",
+  greeting_pure: "{saludo} ¿Me dices tu nombre y en qué te puedo ayudar?",
   thanks: "¡Con gusto! Si necesitas algo más, aquí estoy.",
   ack: "Perfecto. Si tienes otra consulta, escríbeme."
 };

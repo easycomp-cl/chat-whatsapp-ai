@@ -203,6 +203,12 @@ export function pickConversationalResponse(input: {
     });
   }
 
+  // greeting_pure sin variantes custom: lo resuelve buildConversationalReply
+  // (pide nombre solo si aún no lo conocemos).
+  if (input.trigger === "greeting_pure") {
+    return null;
+  }
+
   const defaultTemplate =
     DEFAULT_CONVERSATIONAL_REPLIES[
       input.trigger as keyof typeof DEFAULT_CONVERSATIONAL_REPLIES
