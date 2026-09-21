@@ -116,26 +116,33 @@ export class MessageRouterService {
     pipelineText = resolvePipelineText({ ...message, text: pipelineText });
 
     if (pipelineText.trim() && !ingested.isDuplicate) {
-      await customerProfileExtractService.ingestInbound({
-        tenantId: resolved.tenant.id,
-        conversationId: ingested.conversation.id,
-        customerId: ingested.customer.id,
-        customerPhone: ingested.customer.phoneNumber,
-        text: pipelineText
-      });
-      await mechanicAgentService.observeInbound({
-        tenantId: resolved.tenant.id,
-        conversationId: ingested.conversation.id,
-        customerId: ingested.customer.id,
-        customerPhone: ingested.customer.phoneNumber,
-        text: pipelineText,
-        configJson: resolved.tenant.config?.configJson
-      });
-      await customerProductHistoryService.observeInbound({
-        tenantId: resolved.tenant.id,
-        customerId: ingested.customer.id,
-        text: pipelineText
-      });
+      try {
+        await customerProfileExtractService.ingestInbound({
+          tenantId: resolved.tenant.id,
+          conversationId: ingested.conversation.id,
+          customerId: ingested.customer.id,
+          customerPhone: ingested.customer.phoneNumber,
+          text: pipelineText
+        });
+        await mechanicAgentService.observeInbound({
+          tenantId: resolved.tenant.id,
+          conversationId: ingested.conversation.id,
+          customerId: ingested.customer.id,
+          customerPhone: ingested.customer.phoneNumber,
+          text: pipelineText,
+          configJson: resolved.tenant.config?.configJson
+        });
+        await customerProductHistoryService.observeInbound({
+          tenantId: resolved.tenant.id,
+          customerId: ingested.customer.id,
+          text: pipelineText
+        });
+      } catch (error) {
+        logger.error(
+          { err: error, conversationId: ingested.conversation.id },
+          "Inbound profile/vehicle extract failed"
+        );
+      }
     }
 
     const flowResult = await flowOrchestratorService.handleInbound({

@@ -37,6 +37,10 @@ export type PlateLookupResult = {
   provider_configured: boolean;
 };
 
+function isMissingTable(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2021";
+}
+
 function extrasFromRaw(raw: unknown): {
   vin: string | null;
   fuel: string | null;
@@ -96,9 +100,18 @@ export class VehiclePlateService {
 
     const plate = normalizeChileanPlate(rawPlate);
     const now = new Date();
-    const cached = await prisma.vehiclePlateLookup.findUnique({
-      where: { plateNormalized: plate }
-    });
+    let cached: Awaited<ReturnType<typeof prisma.vehiclePlateLookup.findUnique>> = null;
+    try {
+      cached = await prisma.vehiclePlateLookup.findUnique({
+        where: { plateNormalized: plate }
+      });
+    } catch (error) {
+      if (!isMissingTable(error)) throw error;
+      logger.error(
+        { err: error, plate },
+        "VehiclePlateLookup table missing; skipping cache. Apply migration 20260921180000_vehicle_fitment_system_events"
+      );
+    }
 
     if (cached && cached.expiresAt > now) {
       const extras = extrasFromRaw(cached.rawJson);
@@ -168,35 +181,40 @@ export class VehiclePlateService {
       ...(remote.year != null ? { year: remote.year } : {})
     });
 
-    await prisma.vehiclePlateLookup.upsert({
-      where: { plateNormalized: plate },
-      create: {
-        plateNormalized: plate,
-        makeName: remote.makeName,
-        modelName: remote.modelName,
-        year: remote.year,
-        engine: remote.engine,
-        vehicleType: remote.vehicleType,
-        color: remote.color,
-        vehicleModelId: null,
-        provider: "remote",
-        rawJson: remote.raw as Prisma.InputJsonValue,
-        lookedUpAt: now,
-        expiresAt: new Date(now.getTime() + CACHE_TTL_MS)
-      },
-      update: {
-        makeName: remote.makeName,
-        modelName: remote.modelName,
-        year: remote.year,
-        engine: remote.engine,
-        vehicleType: remote.vehicleType,
-        color: remote.color,
-        provider: "remote",
-        rawJson: remote.raw as Prisma.InputJsonValue,
-        lookedUpAt: now,
-        expiresAt: new Date(now.getTime() + CACHE_TTL_MS)
-      }
-    });
+    try {
+      await prisma.vehiclePlateLookup.upsert({
+        where: { plateNormalized: plate },
+        create: {
+          plateNormalized: plate,
+          makeName: remote.makeName,
+          modelName: remote.modelName,
+          year: remote.year,
+          engine: remote.engine,
+          vehicleType: remote.vehicleType,
+          color: remote.color,
+          vehicleModelId: null,
+          provider: "remote",
+          rawJson: remote.raw as Prisma.InputJsonValue,
+          lookedUpAt: now,
+          expiresAt: new Date(now.getTime() + CACHE_TTL_MS)
+        },
+        update: {
+          makeName: remote.makeName,
+          modelName: remote.modelName,
+          year: remote.year,
+          engine: remote.engine,
+          vehicleType: remote.vehicleType,
+          color: remote.color,
+          provider: "remote",
+          rawJson: remote.raw as Prisma.InputJsonValue,
+          lookedUpAt: now,
+          expiresAt: new Date(now.getTime() + CACHE_TTL_MS)
+        }
+      });
+    } catch (error) {
+      if (!isMissingTable(error)) throw error;
+      logger.error({ err: error, plate }, "VehiclePlateLookup table missing; result not cached");
+    }
 
     return {
       status: "found",

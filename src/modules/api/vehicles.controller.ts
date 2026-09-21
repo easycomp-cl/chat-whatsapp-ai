@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
-import { z } from "zod";
+import { z, ZodError } from "zod";
 import { prisma } from "../../lib/prisma.js";
+import { logger } from "../../lib/logger.js";
 import { paramId } from "../../utils/params.js";
 import { isValidChileanPlate } from "../../utils/chilean-plate.js";
 import { vehiclePlateService } from "../vehicles/vehicle-plate.service.js";
@@ -90,53 +91,68 @@ export async function searchVehicleModelsHandler(req: Request, res: Response) {
 
 export async function lookupConversationVehicle(req: Request, res: Response) {
   const conversationId = paramId(req, "id");
-  const body = lookupBodySchema.parse(req.body);
-  const conversation = await prisma.conversation.findUnique({
-    where: { id: conversationId },
-    include: { customer: true, tenant: { include: { config: true } } }
-  });
-  if (!conversation) {
-    res.status(404).json({ error: "Conversation not found" });
-    return;
+  let body: z.infer<typeof lookupBodySchema>;
+  try {
+    body = lookupBodySchema.parse(req.body);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ error: "Solicitud inválida", details: error.flatten() });
+      return;
+    }
+    throw error;
   }
 
-  const result = await vehiclePlateService.lookup(body.plate);
-  await mechanicAgentService.observeInbound({
-    tenantId: conversation.tenantId,
-    conversationId: conversation.id,
-    customerId: conversation.customerId,
-    customerPhone: conversation.customer.phoneNumber,
-    text: `patente ${body.plate}`,
-    configJson: conversation.tenant.config?.configJson,
-    actor: "HUMAN"
-  });
-  await mechanicAgentService.buildContext({
-    tenantId: conversation.tenantId,
-    conversationId: conversation.id,
-    customerId: conversation.customerId,
-    customerPhone: conversation.customer.phoneNumber,
-    text: `patente ${body.plate}`,
-    configJson: conversation.tenant.config?.configJson,
-    emitEvents: true,
-    actor: "HUMAN"
-  });
-
-  let fitment = null;
-  if (result.vehicle) {
-    const found = await vehicleFitmentService.findCompatible({
-      tenantId: conversation.tenantId,
-      vehicle: result.vehicle
+  try {
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: conversationId },
+      include: { customer: true, tenant: { include: { config: true } } }
     });
-    fitment = {
-      compatible: found.compatible,
-      missing: found.missing
-    };
-  }
+    if (!conversation) {
+      res.status(404).json({ error: "Conversation not found" });
+      return;
+    }
 
-  res.json({
-    ...serializePlate(result),
-    fitment
-  });
+    const result = await vehiclePlateService.lookup(body.plate);
+    await mechanicAgentService.observeInbound({
+      tenantId: conversation.tenantId,
+      conversationId: conversation.id,
+      customerId: conversation.customerId,
+      customerPhone: conversation.customer.phoneNumber,
+      text: `patente ${body.plate}`,
+      configJson: conversation.tenant.config?.configJson,
+      actor: "HUMAN"
+    });
+    await mechanicAgentService.buildContext({
+      tenantId: conversation.tenantId,
+      conversationId: conversation.id,
+      customerId: conversation.customerId,
+      customerPhone: conversation.customer.phoneNumber,
+      text: `patente ${body.plate}`,
+      configJson: conversation.tenant.config?.configJson,
+      emitEvents: true,
+      actor: "HUMAN"
+    });
+
+    let fitment = null;
+    if (result.vehicle) {
+      const found = await vehicleFitmentService.findCompatible({
+        tenantId: conversation.tenantId,
+        vehicle: result.vehicle
+      });
+      fitment = {
+        compatible: found.compatible,
+        missing: found.missing
+      };
+    }
+
+    res.json({
+      ...serializePlate(result),
+      fitment
+    });
+  } catch (error) {
+    logger.error({ err: error, conversationId }, "Conversation vehicle lookup failed");
+    res.status(500).json({ error: "No se pudo consultar la patente" });
+  }
 }
 
 export async function listCompatibleCatalogProducts(req: Request, res: Response) {

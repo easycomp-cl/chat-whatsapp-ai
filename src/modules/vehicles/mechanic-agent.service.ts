@@ -1,4 +1,5 @@
 import { prisma } from "../../lib/prisma.js";
+import { logger } from "../../lib/logger.js";
 import { extractChileanPlates } from "../../utils/chilean-plate.js";
 import { patchCustomerProfile } from "../customers/customer-profile.service.js";
 import {
@@ -64,6 +65,22 @@ export type MechanicAgentResult = {
 
 export class MechanicAgentService {
   async observeInbound(input: {
+    tenantId: string;
+    conversationId: string;
+    customerId: string;
+    customerPhone: string;
+    text: string;
+    configJson?: unknown;
+    actor?: SystemEventActor;
+  }): Promise<void> {
+    try {
+      await this.observeInboundUnsafe(input);
+    } catch (error) {
+      logger.error({ err: error, conversationId: input.conversationId }, "Mechanic observeInbound failed");
+    }
+  }
+
+  private async observeInboundUnsafe(input: {
     tenantId: string;
     conversationId: string;
     customerId: string;

@@ -1,5 +1,6 @@
 import { ContentType, ConversationStatus, MessageDirection, Prisma, SenderType } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
+import { logger } from "../../lib/logger.js";
 import type { SystemEventPayload } from "./system-event.types.js";
 
 export class SystemEventService {
@@ -29,21 +30,26 @@ export class SystemEventService {
       }
     } as Prisma.InputJsonValue;
 
-    return prisma.message.create({
-      data: {
-        conversationId: input.conversationId,
-        tenantId: input.tenantId,
-        customerId: input.customerId,
-        direction: MessageDirection.OUTBOUND,
-        senderType: SenderType.SYSTEM,
-        senderPhone: "system",
-        receiverPhone: input.customerPhone,
-        contentText: `${title}: ${body}`,
-        contentType: ContentType.SYSTEM_EVENT,
-        aiGenerated: false,
-        rawPayloadJson
-      }
-    });
+    try {
+      return await prisma.message.create({
+        data: {
+          conversationId: input.conversationId,
+          tenantId: input.tenantId,
+          customerId: input.customerId,
+          direction: MessageDirection.OUTBOUND,
+          senderType: SenderType.SYSTEM,
+          senderPhone: "system",
+          receiverPhone: input.customerPhone,
+          contentText: `${title}: ${body}`,
+          contentType: ContentType.SYSTEM_EVENT,
+          aiGenerated: false,
+          rawPayloadJson
+        }
+      });
+    } catch (error) {
+      logger.error({ err: error, conversationId: input.conversationId }, "Failed to append system event");
+      return null;
+    }
   }
 
   async appendForConversation(conversationId: string, event: SystemEventPayload) {
