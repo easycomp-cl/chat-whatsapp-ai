@@ -1,3 +1,5 @@
+import { formatChileanPlate } from "../../utils/chilean-plate.js";
+
 export type StoredVehicle = {
   key: string;
   plate?: string;
@@ -232,8 +234,145 @@ export function upsertGarageVehicle(
   };
 }
 
-function productIdentity(item: StoredProductEvent): string {
+export function productIdentity(item: StoredProductEvent): string {
   return (item.product_id ?? item.sku ?? item.name).toLowerCase();
+}
+
+export type GarageProductBucket = "consulted" | "quoted" | "purchased";
+
+const PRODUCT_BUCKET_KEYS: Record<GarageProductBucket, keyof Pick<
+  CustomerGarage,
+  "products_consulted" | "products_quoted" | "products_purchased"
+>> = {
+  consulted: "products_consulted",
+  quoted: "products_quoted",
+  purchased: "products_purchased"
+};
+
+export function formatVehicleGarageLabel(vehicle: StoredVehicle): string {
+  const plate = vehicle.plate ? formatChileanPlate(vehicle.plate) : undefined;
+  const modelLine = [vehicle.make, vehicle.model, vehicle.year != null ? String(vehicle.year) : null]
+    .filter(Boolean)
+    .join(" ");
+  if (plate && modelLine) return `${plate} · ${modelLine}`;
+  return plate || modelLine || vehicle.key;
+}
+
+export function formatProductGarageLabel(item: StoredProductEvent): string {
+  return item.sku ? `${item.name} · ${item.sku}` : item.name;
+}
+
+function parseVehicleList(raw: unknown): StoredVehicle[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map(parseVehicle).filter((item): item is StoredVehicle => item != null);
+}
+
+function parseProductList(raw: unknown): StoredProductEvent[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map(parseProduct).filter((item): item is StoredProductEvent => item != null);
+}
+
+export function diffRemovedGarageLabels(
+  existingMeta: unknown,
+  incomingMeta: unknown
+): string[] {
+  const existing = asRecord(existingMeta);
+  const incoming = asRecord(incomingMeta);
+  const removed: string[] = [];
+
+  if (Array.isArray(incoming.vehicles)) {
+    const previousVehicles = Array.isArray(existing.vehicles)
+      ? parseVehicleList(existing.vehicles)
+      : readCustomerGarage(existing).vehicles;
+    const nextKeys = new Set(parseVehicleList(incoming.vehicles).map((item) => item.key));
+    for (const vehicle of previousVehicles) {
+      if (!nextKeys.has(vehicle.key)) {
+        removed.push(`vehículo: ${formatVehicleGarageLabel(vehicle)}`);
+      }
+    }
+  }
+
+  const seenProducts = new Set<string>();
+  for (const key of ["products_consulted", "products_quoted", "products_purchased"] as const) {
+    if (!Array.isArray(incoming[key])) continue;
+    const previous = parseProductList(existing[key]);
+    const nextIds = new Set(parseProductList(incoming[key]).map(productIdentity));
+    for (const item of previous) {
+      if (nextIds.has(productIdentity(item))) continue;
+      const label = `producto: ${formatProductGarageLabel(item)}`;
+      if (seenProducts.has(label)) continue;
+      seenProducts.add(label);
+      removed.push(label);
+    }
+  }
+
+  return removed;
+}
+
+export function findGarageVehicle(
+  garage: CustomerGarage,
+  vehicleKey: string
+): StoredVehicle | undefined {
+  const needle = decodeVehicleKey(vehicleKey);
+  if (!needle) return undefined;
+  return garage.vehicles.find((item) => item.key === needle || item.key === vehicleKey.trim());
+}
+
+function decodeVehicleKey(vehicleKey: string): string {
+  const trimmed = vehicleKey.trim();
+  try {
+    return decodeURIComponent(trimmed);
+  } catch {
+    return trimmed;
+  }
+}
+
+export function removeGarageVehicle(
+  garage: CustomerGarage,
+  vehicleKey: string
+): { garage: CustomerGarage; removed: StoredVehicle } | null {
+  const target = findGarageVehicle(garage, vehicleKey);
+  if (!target) return null;
+  const vehicles = garage.vehicles.filter((item) => item.key !== target.key);
+  const wasActive = garage.active_vehicle_key === target.key;
+  return {
+    removed: target,
+    garage: {
+      ...garage,
+      vehicles,
+      active_vehicle_key: wasActive ? (vehicles[0]?.key ?? null) : garage.active_vehicle_key
+    }
+  };
+}
+
+export function productMatchesIdentity(item: StoredProductEvent, identity: string): boolean {
+  const needle = identity.trim().toLowerCase();
+  if (!needle) return false;
+  return (
+    productIdentity(item) === needle ||
+    item.product_id?.toLowerCase() === needle ||
+    item.sku?.toLowerCase() === needle ||
+    item.name.toLowerCase() === needle
+  );
+}
+
+export function removeGarageProduct(
+  garage: CustomerGarage,
+  bucket: GarageProductBucket,
+  identity: string
+): { garage: CustomerGarage; removed: StoredProductEvent } | null {
+  const key = PRODUCT_BUCKET_KEYS[bucket];
+  const list = garage[key];
+  const index = list.findIndex((item) => productMatchesIdentity(item, identity));
+  if (index < 0) return null;
+  const removed = list[index]!;
+  return {
+    removed,
+    garage: {
+      ...garage,
+      [key]: list.filter((_, itemIndex) => itemIndex !== index)
+    }
+  };
 }
 
 export function upsertGarageProduct(

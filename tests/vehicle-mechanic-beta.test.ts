@@ -13,7 +13,12 @@ import {
   UNIVERSAL_PART_SKUS
 } from "../src/modules/vehicles/vehicle-catalog.js";
 import {
+  diffRemovedGarageLabels,
+  formatProductGarageLabel,
+  formatVehicleGarageLabel,
   readCustomerGarage,
+  removeGarageProduct,
+  removeGarageVehicle,
   upsertGarageVehicle,
   writeCustomerGarage
 } from "../src/modules/customers/customer-garage.js";
@@ -23,6 +28,7 @@ import {
   systemEventTitle,
   formatVehicleCardBody,
   buildSystemEvent,
+  describeGarageRemovalEvent,
   describeProfileChanges
 } from "../src/modules/conversations/system-event-copy.js";
 import { toChatTurns } from "../src/modules/runtime/conversation-history.js";
@@ -60,6 +66,11 @@ describe("customer profile extract", () => {
   it("ignores generic introductions", () => {
     expect(extractCustomerFactsFromText("hola soy el dueño").display_alias).toBeUndefined();
     expect(extractCustomerFactsFromText("quiero un filtro").display_alias).toBeUndefined();
+  });
+
+  it("captures informal name introductions", () => {
+    expect(extractCustomerFactsFromText("Camila por acá").display_alias).toBe("Camila");
+    expect(extractCustomerFactsFromText("te habla Pedro Soto").display_alias).toBe("Pedro Soto");
   });
 });
 
@@ -100,6 +111,100 @@ describe("vehicle catalog beta", () => {
     expect(garage.active_vehicle_key).toContain("AB1234");
     const written = writeCustomerGarage({}, garage);
     expect(Array.isArray(written.vehicles) && written.vehicles).toHaveLength(2);
+  });
+
+  it("labels and diffs garage removals without a second active-vehicle pill", () => {
+    expect(
+      formatVehicleGarageLabel({
+        key: "plate:KKRS47",
+        plate: "KKRS47",
+        make: "DONGFENG",
+        model: "JOYEAR",
+        year: 2018,
+        source: "conversation",
+        last_seen_at: "2026-09-21T00:00:00.000Z"
+      })
+    ).toBe("KK RS 47 · DONGFENG JOYEAR 2018");
+    expect(
+      formatVehicleGarageLabel({
+        key: "model:toyota:hilux:2018",
+        make: "Toyota",
+        model: "Hilux",
+        year: 2018,
+        source: "conversation",
+        last_seen_at: "2026-09-21T00:00:00.000Z"
+      })
+    ).toBe("Toyota Hilux 2018");
+    expect(
+      formatProductGarageLabel({
+        name: "Filtro de aceite",
+        sku: "ECP-FIL-001",
+        source: "chat",
+        at: "2026-09-21T00:00:00.000Z"
+      })
+    ).toBe("Filtro de aceite · ECP-FIL-001");
+
+    const dongfeng = {
+      key: "plate:KKRS47",
+      plate: "KKRS47",
+      make: "DONGFENG",
+      model: "JOYEAR",
+      year: 2018,
+      source: "conversation",
+      last_seen_at: "2026-09-21T00:00:00.000Z"
+    };
+    const hilux = {
+      key: "plate:BBBB12",
+      plate: "BBBB12",
+      make: "Toyota",
+      model: "Hilux",
+      year: 2018,
+      source: "conversation",
+      last_seen_at: "2026-09-21T00:00:00.000Z"
+    };
+    const filter = {
+      name: "Filtro de aceite",
+      sku: "ECP-FIL-001",
+      source: "chat" as const,
+      at: "2026-09-21T00:00:00.000Z"
+    };
+    expect(
+      diffRemovedGarageLabels(
+        {
+          vehicles: [dongfeng, hilux],
+          active_vehicle_key: dongfeng.key,
+          products_consulted: [filter]
+        },
+        {
+          vehicles: [hilux],
+          active_vehicle_key: hilux.key,
+          active_vehicle: hilux
+        }
+      )
+    ).toEqual(["vehículo: KK RS 47 · DONGFENG JOYEAR 2018"]);
+    expect(
+      diffRemovedGarageLabels(
+        { products_consulted: [filter] },
+        { products_consulted: [] }
+      )
+    ).toEqual(["producto: Filtro de aceite · ECP-FIL-001"]);
+
+    const garage = {
+      first_name: null,
+      last_name: null,
+      vehicles: [dongfeng, hilux],
+      active_vehicle_key: dongfeng.key,
+      products_consulted: [filter],
+      products_quoted: [],
+      products_purchased: []
+    };
+    const withoutCar = removeGarageVehicle(garage, dongfeng.key);
+    expect(withoutCar?.garage.vehicles.map((item) => item.key)).toEqual([hilux.key]);
+    expect(withoutCar?.garage.active_vehicle_key).toBe(hilux.key);
+    expect(withoutCar?.garage.products_consulted).toEqual([filter]);
+    const withoutSku = removeGarageProduct(garage, "consulted", "ECP-FIL-001");
+    expect(withoutSku?.garage.products_consulted).toEqual([]);
+    expect(withoutSku?.garage.vehicles).toHaveLength(2);
   });
 
   it("maps universal oils to catalog SKUs", () => {
@@ -179,6 +284,33 @@ describe("system events", () => {
     expect(names.body).toContain("nombre: Camila");
     expect(names.body).toContain("apellido: Soto");
     expect(names.body).not.toMatch(/vehículos u otros datos/i);
+  });
+
+  it("describes garage removals for the blue pill", () => {
+    const event = describeGarageRemovalEvent([
+      "vehículo: KK RS 47 · DONGFENG JOYEAR 2018",
+      "producto: Filtro de aceite · ECP-FIL-001"
+    ]);
+    expect(event.added).toEqual([]);
+    expect(event.modified).toEqual([]);
+    expect(event.body).toBe(
+      "se eliminó: vehículo: KK RS 47 · DONGFENG JOYEAR 2018, producto: Filtro de aceite · ECP-FIL-001"
+    );
+    const pill = buildSystemEvent("profile_updated", "HUMAN", event.body, {
+      actor_name: "Israel Gonzalez",
+      removed: event.removed,
+      added: event.added,
+      modified: event.modified,
+      source: "inbox_garage_remove"
+    });
+    expect(pill.kind).toBe("profile_updated");
+    expect(pill.actor).toBe("HUMAN");
+    expect(pill.appearance).toBe("blue_pill");
+    expect(pill.body).toBe(event.body);
+    expect(pill.payload).toMatchObject({
+      actor_name: "Israel Gonzalez",
+      source: "inbox_garage_remove"
+    });
   });
 
   it("keeps a human actor when stored", () => {

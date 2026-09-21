@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { setNoStore } from "../../lib/http-cache.js";
@@ -7,17 +8,38 @@ import {
   isHumanProfileUpdate,
   patchCustomerProfile,
   serializeCustomerProfile,
-  type CustomerProfilePatch
+  type CustomerProfilePatch,
+  type PatchCustomerProfileResult
 } from "../customers/customer-profile.service.js";
+import {
+  formatProductGarageLabel,
+  formatVehicleGarageLabel,
+  readCustomerGarage,
+  removeGarageProduct,
+  removeGarageVehicle,
+  writeCustomerGarage,
+  type GarageProductBucket
+} from "../customers/customer-garage.js";
 import {
   ConversationNotForCustomerError,
   SystemEventPersistError,
   systemEventService
 } from "../conversations/system-event.service.js";
-import { buildSystemEvent, describeProfileChanges } from "../conversations/system-event-copy.js";
+import {
+  buildSystemEvent,
+  describeGarageRemovalEvent,
+  describeProfileChanges
+} from "../conversations/system-event-copy.js";
 
 const invoiceTypeSchema = z.enum(["RECEIPT", "INVOICE", "NONE"]).nullable();
 const billingSameSchema = z.enum(["NONE", "DELIVERY_1", "DELIVERY_2"]).nullable();
+const actorNameSchema = z
+  .string()
+  .optional()
+  .transform((value) => {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : undefined;
+  });
 
 const patchCustomerSchema = z
   .object({
@@ -45,9 +67,24 @@ const patchCustomerSchema = z
     billing_same_as_delivery: billingSameSchema.optional(),
     profile_metadata: z.record(z.unknown()).nullable().optional(),
     profile_updated_by: z.string().optional(),
-    conversation_id: z.string().min(1).optional()
+    conversation_id: z.string().min(1).optional(),
+    actor_name: actorNameSchema
   })
   .strict();
+
+const deleteGarageItemSchema = z
+  .object({
+    conversation_id: z.string().min(1),
+    actor_name: actorNameSchema
+  })
+  .strict();
+
+const deleteGarageProductSchema = deleteGarageItemSchema.extend({
+  bucket: z.enum(["consulted", "quoted", "purchased"]),
+  identity: z.string().trim().min(1)
+});
+
+type ProfileDb = Prisma.TransactionClient | typeof prisma;
 
 async function loadTenantConfig(tenantId: string) {
   const config = await prisma.tenantConfig.findUnique({
@@ -55,6 +92,88 @@ async function loadTenantConfig(tenantId: string) {
     select: { configJson: true }
   });
   return config?.configJson;
+}
+
+function actorNamePayload(actorName?: string): Record<string, string> {
+  const name = actorName?.trim();
+  return name ? { actor_name: name } : {};
+}
+
+function optionalActorName(actorName?: string): { actorName: string } | Record<string, never> {
+  const name = actorName?.trim();
+  return name ? { actorName: name } : {};
+}
+
+async function assertConversationForCustomer(input: {
+  tenantId: string;
+  customerId: string;
+  conversationId: string;
+}) {
+  const conversation = await prisma.conversation.findFirst({
+    where: {
+      id: input.conversationId,
+      tenantId: input.tenantId,
+      customerId: input.customerId
+    },
+    select: { id: true }
+  });
+  if (!conversation) {
+    throw new ConversationNotForCustomerError();
+  }
+}
+
+async function appendGarageRemovalEvent(
+  input: {
+    tenantId: string;
+    conversationId: string;
+    customerId: string;
+    customerPhone: string;
+    removed: string[];
+    actorName?: string;
+  },
+  db: ProfileDb
+) {
+  const described = describeGarageRemovalEvent(input.removed);
+  if (!described.body) {
+    throw new SystemEventPersistError("El evento de sistema no tiene título o cuerpo");
+  }
+  await systemEventService.append(
+    {
+      tenantId: input.tenantId,
+      conversationId: input.conversationId,
+      customerId: input.customerId,
+      customerPhone: input.customerPhone,
+      event: buildSystemEvent("profile_updated", "HUMAN", described.body, {
+        ...actorNamePayload(input.actorName),
+        removed: described.removed,
+        added: described.added,
+        modified: described.modified,
+        source: "inbox_garage_remove"
+      })
+    },
+    db
+  );
+}
+
+function replyCustomerWriteError(res: Response, error: unknown, fallback: string) {
+  const message = error instanceof Error ? error.message : fallback;
+  if (message === "Customer not found") {
+    res.status(404).json({ error: message });
+    return;
+  }
+  if (error instanceof ConversationNotForCustomerError) {
+    res.status(400).json({ error: message, code: "conversation_not_for_customer" });
+    return;
+  }
+  if (error instanceof SystemEventPersistError) {
+    res.status(500).json({ error: message, code: "system_event_persist_failed" });
+    return;
+  }
+  if (message === "RUT inválido" || message.includes("alias")) {
+    res.status(400).json({ error: message });
+    return;
+  }
+  res.status(500).json({ error: message });
 }
 
 export async function getCustomerProfile(req: Request, res: Response) {
@@ -125,17 +244,11 @@ export async function patchCustomerProfileHandler(req: Request, res: Response) {
         })
       : null;
     if (humanUpdate && body.conversation_id) {
-      const conversation = await prisma.conversation.findFirst({
-        where: {
-          id: body.conversation_id,
-          tenantId: businessId,
-          customerId
-        },
-        select: { id: true }
+      await assertConversationForCustomer({
+        tenantId: businessId,
+        customerId,
+        conversationId: body.conversation_id
       });
-      if (!conversation) {
-        throw new ConversationNotForCustomerError();
-      }
     }
 
     const applyPatch = async (db?: Parameters<typeof patchCustomerProfile>[0]["db"]) => {
@@ -146,12 +259,28 @@ export async function patchCustomerProfileHandler(req: Request, res: Response) {
         ...(db ? { db } : {})
       });
 
-      if (!humanUpdate || result.changes.length === 0) {
+      const hasProfileChanges = result.changes.length > 0;
+      const hasGarageRemovals = result.removedGarageItems.length > 0;
+      if (!humanUpdate || (!hasProfileChanges && !hasGarageRemovals)) {
         return result;
       }
       if (!body.conversation_id) {
         throw new ConversationNotForCustomerError(
           "conversation_id es obligatorio para registrar el cambio en el chat"
+        );
+      }
+
+      if (hasGarageRemovals) {
+        await appendGarageRemovalEvent(
+          {
+            tenantId: businessId,
+            conversationId: body.conversation_id,
+            customerId,
+            customerPhone: result.customer.phoneNumber,
+            removed: result.removedGarageItems,
+            ...optionalActorName(body.actor_name)
+          },
+          db ?? prisma
         );
       }
 
@@ -167,7 +296,11 @@ export async function patchCustomerProfileHandler(req: Request, res: Response) {
           customerId,
           customerPhone: result.customer.phoneNumber,
           event: buildSystemEvent("profile_updated", "HUMAN", described.body, {
-            ...(tenant?.name ? { actor_name: tenant.name } : {}),
+            ...(body.actor_name
+              ? actorNamePayload(body.actor_name)
+              : tenant?.name
+                ? { actor_name: tenant.name }
+                : {}),
             added: described.added,
             modified: described.modified,
             source: "inbox_profile_patch"
@@ -186,23 +319,137 @@ export async function patchCustomerProfileHandler(req: Request, res: Response) {
     setNoStore(res);
     res.json(await serializeCustomerProfile(updated, tenantConfigJson));
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Error al actualizar perfil";
-    if (message === "Customer not found") {
-      res.status(404).json({ error: message });
+    replyCustomerWriteError(res, error, "Error al actualizar perfil");
+  }
+}
+
+async function persistGarageRemoval(input: {
+  req: Request;
+  res: Response;
+  removedLabels: string[];
+  nextMetadata: Record<string, unknown>;
+  conversationId: string;
+  actorName?: string;
+}) {
+  const businessId = paramId(input.req, "businessId");
+  const customerId = paramId(input.req, "customerId");
+
+  await assertConversationForCustomer({
+    tenantId: businessId,
+    customerId,
+    conversationId: input.conversationId
+  });
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const result: PatchCustomerProfileResult = await patchCustomerProfile({
+      tenantId: businessId,
+      customerId,
+      patch: {
+        profile_updated_by: "BUSINESS_ADMIN",
+        profile_metadata: input.nextMetadata
+      },
+      db: tx
+    });
+    await appendGarageRemovalEvent(
+      {
+        tenantId: businessId,
+        conversationId: input.conversationId,
+        customerId,
+        customerPhone: result.customer.phoneNumber,
+        removed: input.removedLabels,
+        ...optionalActorName(input.actorName)
+      },
+      tx
+    );
+    return result.customer;
+  });
+
+  const tenantConfigJson = await loadTenantConfig(businessId);
+  setNoStore(input.res);
+  input.res.json(await serializeCustomerProfile(updated, tenantConfigJson));
+}
+
+export async function deleteCustomerVehicleHandler(req: Request, res: Response) {
+  const businessId = paramId(req, "businessId");
+  const customerId = paramId(req, "customerId");
+  const vehicleKey = paramId(req, "vehicleKey");
+
+  let body: z.infer<typeof deleteGarageItemSchema>;
+  try {
+    body = deleteGarageItemSchema.parse(req.body ?? {});
+  } catch (error) {
+    res.status(400).json({ error: "Invalid request body", details: error });
+    return;
+  }
+
+  try {
+    const customer = await prisma.customer.findFirst({
+      where: { id: customerId, tenantId: businessId }
+    });
+    if (!customer) {
+      res.status(404).json({ error: "Customer not found" });
       return;
     }
-    if (error instanceof ConversationNotForCustomerError) {
-      res.status(400).json({ error: message, code: "conversation_not_for_customer" });
+
+    const removal = removeGarageVehicle(readCustomerGarage(customer.profileMetadata), vehicleKey);
+    if (!removal) {
+      res.status(404).json({ error: "Vehicle not found" });
       return;
     }
-    if (error instanceof SystemEventPersistError) {
-      res.status(500).json({ error: message, code: "system_event_persist_failed" });
+
+    await persistGarageRemoval({
+      req,
+      res,
+      conversationId: body.conversation_id,
+      ...optionalActorName(body.actor_name),
+      removedLabels: [`vehículo: ${formatVehicleGarageLabel(removal.removed)}`],
+      nextMetadata: writeCustomerGarage(customer.profileMetadata, removal.garage)
+    });
+  } catch (error) {
+    replyCustomerWriteError(res, error, "Error al eliminar el vehículo");
+  }
+}
+
+export async function deleteCustomerProductHandler(req: Request, res: Response) {
+  const businessId = paramId(req, "businessId");
+  const customerId = paramId(req, "customerId");
+
+  let body: z.infer<typeof deleteGarageProductSchema>;
+  try {
+    body = deleteGarageProductSchema.parse(req.body ?? {});
+  } catch (error) {
+    res.status(400).json({ error: "Invalid request body", details: error });
+    return;
+  }
+
+  try {
+    const customer = await prisma.customer.findFirst({
+      where: { id: customerId, tenantId: businessId }
+    });
+    if (!customer) {
+      res.status(404).json({ error: "Customer not found" });
       return;
     }
-    if (message === "RUT inválido" || message.includes("alias")) {
-      res.status(400).json({ error: message });
+
+    const removal = removeGarageProduct(
+      readCustomerGarage(customer.profileMetadata),
+      body.bucket as GarageProductBucket,
+      body.identity
+    );
+    if (!removal) {
+      res.status(404).json({ error: "Product not found" });
       return;
     }
-    res.status(500).json({ error: message });
+
+    await persistGarageRemoval({
+      req,
+      res,
+      conversationId: body.conversation_id,
+      ...optionalActorName(body.actor_name),
+      removedLabels: [`producto: ${formatProductGarageLabel(removal.removed)}`],
+      nextMetadata: writeCustomerGarage(customer.profileMetadata, removal.garage)
+    });
+  } catch (error) {
+    replyCustomerWriteError(res, error, "Error al eliminar el producto");
   }
 }

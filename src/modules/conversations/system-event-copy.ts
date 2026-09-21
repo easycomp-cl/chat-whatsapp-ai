@@ -129,7 +129,9 @@ const PROFILE_FIELD_LABELS: Record<string, string> = {
   billing_same_as_delivery: "facturación igual a entrega",
   profile_metadata: "vehículos u otros datos del perfil",
   vehicle_plate: "patente",
-  vin: "VIN"
+  vin: "VIN",
+  last_need: "necesidad",
+  delivery_preference: "preferencia de entrega"
 };
 
 export function profileFieldLabel(field: string): string {
@@ -175,4 +177,18 @@ export function describeProfileChanges(changes: ProfileFieldChange[]): {
   if (added.length) parts.push(`se añadió: ${added.join(", ")}`);
   if (modified.length) parts.push(`se modificó: ${modified.join(", ")}`);
   return { added, modified, body: parts.join(". ") };
+}
+
+export function describeGarageRemovalEvent(removed: string[]): {
+  removed: string[];
+  added: [];
+  modified: [];
+  body: string;
+} {
+  return {
+    removed,
+    added: [],
+    modified: [],
+    body: removed.length ? `se eliminó: ${removed.join(", ")}` : ""
+  };
 }

@@ -39,7 +39,12 @@ import {
   sendConversationQuote
 } from "./quotes.controller.js";
 import { getMessageMediaUrl, streamMessageMediaFile } from "./message-media.controller.js";
-import { getCustomerProfile, patchCustomerProfileHandler } from "./customers.controller.js";
+import {
+  deleteCustomerProductHandler,
+  deleteCustomerVehicleHandler,
+  getCustomerProfile,
+  patchCustomerProfileHandler
+} from "./customers.controller.js";
 import {
   connectShopify,
   getShopifyIntegration,
@@ -237,6 +242,14 @@ export function createApiRouter() {
 
   router.get("/businesses/:businessId/customers/:customerId", getCustomerProfile);
   router.patch("/businesses/:businessId/customers/:customerId", patchCustomerProfileHandler);
+  router.delete(
+    "/businesses/:businessId/customers/:customerId/vehicles/:vehicleKey",
+    deleteCustomerVehicleHandler
+  );
+  router.delete(
+    "/businesses/:businessId/customers/:customerId/products",
+    deleteCustomerProductHandler
+  );
 
   router.get("/businesses/:businessId/faqs", listFaqs);
   router.post("/businesses/:businessId/faqs", createFaq);

@@ -198,6 +198,70 @@ El backend persiste un `Message` `SYSTEM` / `SYSTEM_EVENT` (`appearance: "blue_p
 - El asesor **puede** pisar un email/nombre ya cargado.
 - Nunca va a WhatsApp ni cuenta como no leído.
 
+## Eliminar vehículo o producto del garage
+
+El panel **Vehículos y productos** (basura) debe dejar una píldora azul en el chat abierto. **No va a WhatsApp.**
+
+### Preferido — DELETE dedicado
+
+No pisa el resto del garage (un PATCH con `products_*: []` sí lo vaciaría).
+
+| Método | Ruta | Body |
+|--------|------|------|
+| `DELETE` | `/businesses/:businessId/customers/:customerId/vehicles/:vehicleKey` | `{ "conversation_id", "actor_name"? }` |
+| `DELETE` | `/businesses/:businessId/customers/:customerId/products` | `{ "bucket": "consulted" \| "quoted" \| "purchased", "identity": "sku-or-name", "conversation_id", "actor_name"? }` |
+
+`vehicleKey` es `garage.vehicles[].key` (URL-encode). `identity` matchea `sku`, `product_id` o `name`. Respuesta 200 = el mismo perfil que el GET/PATCH. 404 si no está. 400 si `conversation_id` no es de ese contacto. Si falla el globo → **no** 200 (rollback).
+
+Si se borra el auto activo, el backend deja como activo el primero que quede (o `null`). No hay un segundo globo por el cambio de activo.
+
+### También funciona el PATCH actual
+
+`PATCH /businesses/:id/customers/:customerId` con el garage ya sin el ítem. El backend compara `vehicles` / `products_*` contra el metadata previo y, si salió algo y viene `conversation_id`, inserta la misma píldora.
+
+```json
+{
+  "profile_metadata": {
+    "vehicles": [{ "key": "plate:BBBB12", "plate": "BBBB12", "make": "Toyota", "model": "Hilux", "year": 2018 }],
+    "active_vehicle_key": "plate:BBBB12",
+    "active_vehicle_plate": "BBBB12",
+    "active_vehicle": { "make": "Toyota", "model": "Hilux", "year": 2018, "plate": "BBBB12" }
+  },
+  "conversation_id": "<chat abierto>",
+  "profile_updated_by": "BUSINESS_ADMIN",
+  "actor_name": "Israel Gonzalez"
+}
+```
+
+**No envíen `products_consulted/quoted/purchased: []` al borrar un auto**: el merge pisa el historial. Omito esos keys, o usen el DELETE. `actor_name` es el nombre real del asesor (no “Asesor” ni el tenant). Si no viene, el globo de baja no usa un genérico.
+
+### Píldora (`kind: profile_updated`, `actor: HUMAN`, `appearance: blue_pill`)
+
+```ts
+payload: {
+  actor_name: "Israel Gonzalez",
+  removed: ["vehículo: KK RS 47 · DONGFENG JOYEAR 2018"],
+  added: [],
+  modified: [],
+  source: "inbox_garage_remove"
+}
+```
+
+`system_event.body` / copy que parsea la UI:
+
+```text
+se eliminó: vehículo: KK RS 47 · DONGFENG JOYEAR 2018
+```
+
+```text
+se eliminó: producto: Filtro de aceite · ECP-FIL-001
+```
+
+- Vehículo: `patente · marca modelo año`. Sin patente: `marca modelo año`.
+- Producto: `nombre` y, si hay, ` · SKU`.
+- Título igual que al guardar datos: “El asesor guardó un dato del contacto”.
+- Recargar el chat: el globo sigue. Otro asesor ve el mismo hilo.
+
 ## APIs del panel
 
 Auth igual (`x-api-key` vía BFF).
@@ -287,3 +351,5 @@ Varios autos; el último mencionado es `active_vehicle_key`. Chips en cabecera d
 6. Tomar/devolver el chat → píldoras azules de modo.
 7. Preview del inbox no muestra el globo.
 8. WhatsApp del cliente no recibe ni azul ni negro.
+9. Chat abierto. Eliminar un vehículo del panel → globo azul + nombre del asesor + **se eliminó:** + etiqueta del auto. Recargar: sigue ahí.
+10. Eliminar un SKU de “Consultados” → **se eliminó: producto: …**. WhatsApp no recibe nada. Otro asesor ve el mismo globo.

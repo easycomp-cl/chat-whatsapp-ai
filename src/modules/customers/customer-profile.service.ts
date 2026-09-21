@@ -3,7 +3,7 @@ import { prisma } from "../../lib/prisma.js";
 import { resolveCustomerDisplayName } from "../../utils/customer-display-name.js";
 import { validateOptionalRut } from "../../utils/chilean-rut.js";
 import { getCustomerReturningStats } from "./customer-returning.service.js";
-import { readCustomerGarage, type CustomerGarage } from "./customer-garage.js";
+import { diffRemovedGarageLabels, readCustomerGarage, type CustomerGarage } from "./customer-garage.js";
 import type { ProfileFieldChange } from "../conversations/system-event-copy.js";
 
 export type CustomerProfileJson = {
@@ -71,6 +71,7 @@ export type { ProfileFieldChange };
 export type PatchCustomerProfileResult = {
   customer: Customer;
   changes: ProfileFieldChange[];
+  removedGarageItems: string[];
 };
 
 export function isHumanProfileUpdate(source: string | undefined): boolean {
@@ -192,6 +193,7 @@ export async function patchCustomerProfile(input: {
   const updatedBy = input.patch.profile_updated_by ?? "BUSINESS_ADMIN";
   const data: Prisma.CustomerUpdateInput = {};
   const changes: ProfileFieldChange[] = [];
+  let removedGarageItems: string[] = [];
 
   if (input.patch.display_alias !== undefined) {
     const alias = trimOptional(input.patch.display_alias ?? undefined);
@@ -317,11 +319,12 @@ export async function patchCustomerProfile(input: {
         ...existingMeta,
         ...incomingMeta
       } as Prisma.InputJsonValue;
+      removedGarageItems = diffRemovedGarageLabels(existingMeta, incomingMeta);
     }
   }
 
   if (Object.keys(data).length === 0) {
-    return { customer: existing, changes: [] };
+    return { customer: existing, changes: [], removedGarageItems: [] };
   }
 
   data.profileUpdatedAt = new Date();
@@ -331,5 +334,5 @@ export async function patchCustomerProfile(input: {
     where: { id: existing.id },
     data
   });
-  return { customer, changes };
+  return { customer, changes, removedGarageItems };
 }
