@@ -194,4 +194,104 @@ describe("MetaGraphClient", () => {
       expect(error.statusCode).toBe(400);
     }
   });
+
+  it("returns debug_token data for a permanent token (expires_at = 0)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: {
+          app_id: "1642810900259407",
+          application: "Agent-Chatbot-AI",
+          expires_at: 0,
+          is_valid: true,
+          user_id: "123456789"
+        }
+      })
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new MetaGraphClient({
+      graphVersion: "v21.0",
+      appId: "1642810900259407",
+      appSecret: "app-secret"
+    });
+
+    const result = await client.debugToken("EAA_permanent_token");
+    expect(result?.data?.expires_at).toBe(0);
+    expect(result?.data?.is_valid).toBe(true);
+  });
+
+  it("returns debug_token data for a user token with expiration date", async () => {
+    const expiresAtUnix = Math.floor(Date.now() / 1000) + 5184000;
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: {
+          app_id: "1642810900259407",
+          expires_at: expiresAtUnix,
+          is_valid: true
+        }
+      })
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new MetaGraphClient({
+      graphVersion: "v21.0",
+      appId: "1642810900259407",
+      appSecret: "app-secret"
+    });
+
+    const result = await client.debugToken("EAA_user_token");
+    expect(result?.data?.expires_at).toBe(expiresAtUnix);
+  });
+
+  it("returns null when debug_token request fails", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({
+        error: {
+          message: "Invalid OAuth access token",
+          code: 190
+        }
+      })
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new MetaGraphClient({
+      graphVersion: "v21.0",
+      appId: "1642810900259407",
+      appSecret: "app-secret"
+    });
+
+    const result = await client.debugToken("EAA_invalid_token");
+    expect(result).toBeNull();
+  });
+
+  it("getWaba no longer requests business_management fields", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: "waba-123",
+        name: "Test WABA"
+      })
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new MetaGraphClient({
+      graphVersion: "v21.0",
+      appId: "app",
+      appSecret: "secret"
+    });
+
+    const waba = await client.getWaba("waba-123", "EAA_token");
+    expect(waba.id).toBe("waba-123");
+    expect(waba.name).toBe("Test WABA");
+    expect(waba.businessId).toBeUndefined();
+
+    const calledUrl = String(fetchMock.mock.calls[0]?.[0]);
+    expect(calledUrl).toContain("fields=id%2Cname");
+    expect(calledUrl).not.toContain("owner_business_info");
+    expect(calledUrl).not.toContain("on_behalf_of_business_info");
+  });
 });

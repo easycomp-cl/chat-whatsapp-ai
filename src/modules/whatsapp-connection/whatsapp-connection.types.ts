@@ -1,5 +1,7 @@
 export type WhatsAppPublicStatus = "connected" | "pending" | "error";
 
+export type TokenExpirationStatus = "ok" | "expiring_soon" | "expired" | "permanent";
+
 export type WhatsAppConnectionPublic = {
   ok: true;
   connected: boolean;
@@ -10,6 +12,7 @@ export type WhatsAppConnectionPublic = {
   business_id: string | null;
   display_phone_number: string | null;
   token_expires_at: string | null;
+  token_status: TokenExpirationStatus;
   last_error: string | null;
   updated_at: string | null;
   meta: {
