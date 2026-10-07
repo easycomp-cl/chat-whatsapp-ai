@@ -41,6 +41,62 @@ describe("whatsapp connection helpers", () => {
       })
     ).toBe("error");
   });
+
+  it("getConnection includes token_status field", async () => {
+    const mockChannel = {
+      id: "channel-1",
+      tenantId: "tenant-1",
+      phoneNumberId: "123456",
+      phoneNumber: "+56946867544",
+      wabaId: "waba-123",
+      metaBusinessId: "biz-456",
+      accessTokenEncrypted: "encrypted-token",
+      tokenExpiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+      status: "ACTIVE" as const,
+      isActive: true,
+      lastError: null,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    vi.spyOn(prisma.tenant, "findUnique").mockResolvedValue({ id: "tenant-1" } as any);
+    vi.spyOn(prisma.tenantChannel, "findUnique").mockResolvedValue(mockChannel as any);
+
+    const service = new WhatsAppConnectionService();
+    const connection = await service.getConnection("tenant-1");
+
+    expect(connection).toBeDefined();
+    expect(connection?.token_status).toBe("ok");
+    expect(connection?.token_expires_at).toBeDefined();
+  });
+
+  it("getConnection returns permanent token_status for null tokenExpiresAt", async () => {
+    const mockChannel = {
+      id: "channel-1",
+      tenantId: "tenant-1",
+      phoneNumberId: "123456",
+      phoneNumber: "+56946867544",
+      wabaId: "waba-123",
+      metaBusinessId: "biz-456",
+      accessTokenEncrypted: "encrypted-token",
+      tokenExpiresAt: null,
+      status: "ACTIVE" as const,
+      isActive: true,
+      lastError: null,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    vi.spyOn(prisma.tenant, "findUnique").mockResolvedValue({ id: "tenant-1" } as any);
+    vi.spyOn(prisma.tenantChannel, "findUnique").mockResolvedValue(mockChannel as any);
+
+    const service = new WhatsAppConnectionService();
+    const connection = await service.getConnection("tenant-1");
+
+    expect(connection).toBeDefined();
+    expect(connection?.token_status).toBe("permanent");
+    expect(connection?.token_expires_at).toBeNull();
+  });
 });
 
 describe("WhatsAppConnectionService", () => {

@@ -107,6 +107,16 @@ export async function stopTokenExpirationCheckWorker() {
 }
 
 export async function scheduleTokenExpirationCheck() {
+  const existingRepeatable = await tokenExpirationCheckQueue.getRepeatableJobs();
+  const alreadyScheduled = existingRepeatable.some(
+    (job) => job.id === "token-expiration-check-daily" || job.key?.includes("token-expiration-check-daily")
+  );
+
+  if (alreadyScheduled) {
+    logger.info("Token expiration check already scheduled; skipping duplicate");
+    return;
+  }
+
   await tokenExpirationCheckQueue.add(
     "check-token-expiration",
     {},

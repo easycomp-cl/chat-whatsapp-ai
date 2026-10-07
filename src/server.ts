@@ -15,6 +15,11 @@ import {
   startWhatsappTemplatesWorker,
   stopWhatsappTemplatesWorker
 } from "./modules/queue/whatsapp-templates.worker.js";
+import {
+  startTokenExpirationCheckWorker,
+  stopTokenExpirationCheckWorker,
+  scheduleTokenExpirationCheck
+} from "./modules/queue/token-expiration-check.worker.js";
 import { disconnectRedis } from "./lib/redis.js";
 
 async function bootstrap() {
@@ -30,6 +35,9 @@ async function bootstrap() {
   startKnowledgeIndexWorker();
   startChatImportAnalysisWorker();
   startWhatsappTemplatesWorker();
+  startTokenExpirationCheckWorker();
+  
+  await scheduleTokenExpirationCheck();
 
   const app = createApp();
 
@@ -43,6 +51,7 @@ async function bootstrap() {
     await stopKnowledgeIndexWorker();
     await stopChatImportAnalysisWorker();
     await stopWhatsappTemplatesWorker();
+    await stopTokenExpirationCheckWorker();
     server.close(async () => {
       await disconnectRedis();
       await prisma.$disconnect();
