@@ -64,6 +64,20 @@ export type GraphCreateTemplateResponse = {
   category?: string;
 };
 
+export type DebugTokenResponse = {
+  data?: {
+    app_id?: string;
+    application?: string;
+    expires_at?: number;
+    is_valid?: boolean;
+    user_id?: string;
+  };
+  error?: {
+    message?: string;
+    code?: number;
+  };
+};
+
 export class MetaGraphApiError extends Error {
   constructor(
     message: string,
@@ -337,7 +351,7 @@ export class MetaGraphClient {
 
   async getWaba(wabaId: string, accessToken: string): Promise<WabaDetails> {
     const url = new URL(this.graphUrl(`/${wabaId}`));
-    url.searchParams.set("fields", "id,name,owner_business_info,on_behalf_of_business_info");
+    url.searchParams.set("fields", "id,name");
 
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` }
@@ -345,8 +359,6 @@ export class MetaGraphClient {
     const json = (await response.json().catch(() => ({}))) as GraphErrorBody & {
       id?: string;
       name?: string;
-      owner_business_info?: unknown;
-      on_behalf_of_business_info?: unknown;
     };
 
     if (!response.ok || !json.id) {
@@ -357,17 +369,9 @@ export class MetaGraphClient {
       );
     }
 
-    const owner = asRecord(json.owner_business_info);
-    const onBehalf = asRecord(json.on_behalf_of_business_info);
-    const businessId =
-      (typeof owner.id === "string" && owner.id) ||
-      (typeof onBehalf.id === "string" && onBehalf.id) ||
-      undefined;
-
     return {
       id: json.id,
-      ...(json.name ? { name: json.name } : {}),
-      ...(businessId ? { businessId } : {})
+      ...(json.name ? { name: json.name } : {})
     };
   }
 
@@ -423,6 +427,32 @@ export class MetaGraphClient {
       ...(json.status ? { status: json.status } : {}),
       ...(json.category ? { category: json.category } : {})
     };
+  }
+
+  async debugToken(accessToken: string): Promise<DebugTokenResponse | null> {
+    const appAccessToken = `${this.config.appId}|${this.config.appSecret}`;
+    const url = new URL(this.graphUrl("/debug_token"));
+    url.searchParams.set("input_token", accessToken);
+
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${appAccessToken}` }
+    });
+
+    if (!response.ok) {
+      logger.warn(
+        { status: response.status },
+        "debug_token request failed; falling back to expires_in calculation"
+      );
+      return null;
+    }
+
+    const json = (await response.json().catch(() => ({}))) as DebugTokenResponse;
+    if (!json.data || json.error) {
+      logger.warn({ error: json.error }, "debug_token returned error; falling back");
+      return null;
+    }
+
+    return json;
   }
 
   private templateGraphError(status: number, json: GraphErrorBody): MetaGraphApiError {

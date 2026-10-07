@@ -9,6 +9,11 @@ import {
   startWhatsappTemplatesWorker,
   stopWhatsappTemplatesWorker
 } from "./modules/queue/whatsapp-templates.worker.js";
+import {
+  startTokenExpirationCheckWorker,
+  stopTokenExpirationCheckWorker,
+  scheduleTokenExpirationCheck
+} from "./modules/queue/token-expiration-check.worker.js";
 
 async function bootstrap() {
   try {
@@ -24,6 +29,9 @@ async function bootstrap() {
   startChatImportAnalysisWorker();
   startFlowWebhookDeliveryWorker();
   startWhatsappTemplatesWorker();
+  startTokenExpirationCheckWorker();
+  
+  await scheduleTokenExpirationCheck();
 
   logger.info("EasyComp Bot IA workers listening");
 
@@ -34,6 +42,7 @@ async function bootstrap() {
     await stopChatImportAnalysisWorker();
     await stopFlowWebhookDeliveryWorker();
     await stopWhatsappTemplatesWorker();
+    await stopTokenExpirationCheckWorker();
     await disconnectRedis();
     await prisma.$disconnect();
     process.exit(0);

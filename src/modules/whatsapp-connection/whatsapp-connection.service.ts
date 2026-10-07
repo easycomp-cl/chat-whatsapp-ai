@@ -7,7 +7,7 @@ import { WhatsAppClient } from "../channel/whatsapp.client.js";
 import { MetaGraphClient } from "../meta/meta-graph.client.js";
 import { connectionError, WhatsAppConnectionError } from "./whatsapp-connection.errors.js";
 import type { EmbeddedSignupCompleteInput } from "./whatsapp-connection.schema.js";
-import type { EmbeddedSignupCompleteResult, WhatsAppConnectionPublic } from "./whatsapp-connection.types.js";
+import type { EmbeddedSignupCompleteResult, WhatsAppConnectionPublic, TokenExpirationStatus } from "./whatsapp-connection.types.js";
 import {
   hashAuthorizationCode,
   mapChannelToPublicStatus,
@@ -35,8 +35,32 @@ function publicMeta() {
   };
 }
 
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+function getTokenExpirationStatus(tokenExpiresAt: Date | null | undefined): TokenExpirationStatus {
+  if (!tokenExpiresAt) {
+    return "permanent";
+  }
+
+  const now = Date.now();
+  const expiresAt = tokenExpiresAt.getTime();
+  const timeUntilExpiry = expiresAt - now;
+
+  if (timeUntilExpiry <= 0) {
+    return "expired";
+  }
+
+  if (timeUntilExpiry <= SEVEN_DAYS_MS) {
+    return "expiring_soon";
+  }
+
+  return "ok";
+}
+
 function serializeConnection(tenantId: string, channel: TenantChannel | null): WhatsAppConnectionPublic {
   const status = mapChannelToPublicStatus(channel);
+  const tokenStatus = getTokenExpirationStatus(channel?.tokenExpiresAt);
+  
   return {
     ok: true,
     connected: status === "connected",
@@ -47,6 +71,7 @@ function serializeConnection(tenantId: string, channel: TenantChannel | null): W
     business_id: channel?.metaBusinessId ?? null,
     display_phone_number: channel?.phoneNumber ?? null,
     token_expires_at: channel?.tokenExpiresAt?.toISOString() ?? null,
+    token_status: tokenStatus,
     last_error: channel?.lastError ?? null,
     updated_at: channel?.updatedAt?.toISOString() ?? null,
     meta: publicMeta()
@@ -153,8 +178,17 @@ export class WhatsAppConnectionService {
         ? this.graphClientFactory(input.redirect_uri)
         : this.graphClientFactory();
       const shortLived = await graph.exchangeCodeForToken(input.code);
-      const longLived = await graph.exchangeForLongLivedToken(shortLived.accessToken);
-      const token = longLived ?? shortLived;
+      
+      let token = shortLived;
+      if (typeof shortLived.expiresIn === "number") {
+        const longLived = await graph.exchangeForLongLivedToken(shortLived.accessToken);
+        token = longLived ?? shortLived;
+      } else {
+        logger.info(
+          { tenantId, wabaId: input.waba_id },
+          "Token sin expires_in detectado; omitiendo fb_exchange_token para preservar token permanente"
+        );
+      }
 
       await graph.subscribeWaba(input.waba_id, token.accessToken);
 
@@ -173,24 +207,30 @@ export class WhatsAppConnectionService {
         );
       }
 
-      try {
-        const waba = await graph.getWaba(input.waba_id, token.accessToken);
-        businessId = businessId ?? waba.businessId ?? null;
-      } catch (error) {
-        logger.warn(
-          { tenantId, wabaId: input.waba_id, err: error },
-          "No se pudo leer business_id del WABA en Graph"
-        );
-      }
-
       if (!displayPhone) {
         displayPhone = `wa:${input.phone_number_id}`;
       }
 
-      const expiresAt =
-        typeof token.expiresIn === "number"
-          ? new Date(Date.now() + token.expiresIn * 1000)
-          : null;
+      let expiresAt: Date | null = null;
+      const debugTokenResult = await graph.debugToken(token.accessToken);
+      if (debugTokenResult?.data?.expires_at !== undefined) {
+        const expiresAtUnix = debugTokenResult.data.expires_at;
+        if (expiresAtUnix === 0) {
+          expiresAt = null;
+          logger.info(
+            { tenantId, wabaId: input.waba_id },
+            "Token permanente detectado (expires_at=0); tokenExpiresAt será null"
+          );
+        } else {
+          expiresAt = new Date(expiresAtUnix * 1000);
+        }
+      } else if (typeof token.expiresIn === "number") {
+        expiresAt = new Date(Date.now() + token.expiresIn * 1000);
+        logger.info(
+          { tenantId, wabaId: input.waba_id },
+          "debug_token no devolvió expires_at; usando fallback con expires_in"
+        );
+      }
 
       await this.upsertTenantChannel({
         tenantId,
@@ -326,6 +366,7 @@ export class WhatsAppConnectionService {
     return prisma.tenantChannel.create({
       data: {
         tenantId: input.tenantId,
+        channelType: "WHATSAPP_BUSINESS",
         phoneNumberId: input.phoneNumberId,
         phoneNumber: input.phoneNumber,
         accessTokenEncrypted: encrypted,
@@ -338,7 +379,7 @@ export class WhatsAppConnectionService {
         ...(input.coexistenceEnabled !== undefined
           ? { coexistenceEnabled: input.coexistenceEnabled }
           : {}),
-        ...(input.tokenExpiresAt ? { tokenExpiresAt: input.tokenExpiresAt } : {})
+        ...(input.tokenExpiresAt !== undefined ? { tokenExpiresAt: input.tokenExpiresAt } : {})
       }
     });
   }

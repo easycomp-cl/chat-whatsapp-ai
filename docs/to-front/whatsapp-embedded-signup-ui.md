@@ -121,16 +121,18 @@ Alias: `GET /businesses/:id/whatsapp/connection`
   "business_id": "...",
   "display_phone_number": "+56...",
   "token_expires_at": "2026-11-11T12:00:00.000Z",
+  "token_status": "ok",
   "last_error": null,
   "updated_at": "2026-09-12T22:00:00.000Z",
   "meta": {
     "app_id": "1642810900259407",
-    "config_id": "1919146745399628"
+    "config_id": "3646774175478909"
   }
 }
 ```
 
 `status`: `connected` | `pending` | `error`.  
+`token_status`: `permanent` | `ok` | `expiring_soon` | `expired` (ver [whatsapp-token-expiration.md](./whatsapp-token-expiration.md)).  
 No incluye tokens. `meta.config_id` sirve para lanzar el SDK.
 
 ### `POST /whatsapp/connection/test-message`
@@ -162,7 +164,7 @@ Smoke interno: envía un texto al **Tester** usando el **token persistido del Em
 |------------|-----------|
 | Backend ECS | Migración `20260912220000_whatsapp_embedded_signup` + `META_APP_ID` |
 | Meta | Callback URL **sin cambiar**: `https://api-chatbotmanager.easycomp.cl/webhooks/whatsapp` |
-| Front | `config_id` `1919146745399628`, dominio `https://chatbotmanager.easycomp.cl` |
+| Front | `config_id` `3646774175478909`, dominio `https://chatbotmanager.easycomp.cl` |
 | CORS | Origen `https://chatbotmanager.easycomp.cl` (si el browser llama la API directo; el BFF no lo necesita) |
 
 Fuera de alcance UI: App Review, DNS, display name, OAuth Redirect URIs en dashboard Meta.
