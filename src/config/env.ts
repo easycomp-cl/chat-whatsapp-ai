@@ -13,7 +13,7 @@ const envSchema = z.object({
   META_APP_ID: z.string().min(1).default("1642810900259407"),
   META_APP_SECRET: z.string().min(1),
   META_SYSTEM_USER_ACCESS_TOKEN: z.string().min(1).optional(),
-  META_EMBEDDED_SIGNUP_CONFIG_ID: z.string().min(1).default("3646774175478909"),
+  META_EMBEDDED_SIGNUP_CONFIG_ID: z.string().min(1).default("1046141448397539"),
   META_OAUTH_REDIRECT_URI: z.string().url().optional(),
   CORS_ALLOWED_ORIGINS: z.string().optional(),
   OPENAI_API_KEY: z.string().min(1),

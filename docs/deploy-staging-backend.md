@@ -114,7 +114,22 @@ https://api-staging.tudominio.cl/webhooks/whatsapp
 
 El verify token debe coincidir con `WHATSAPP_VERIFY_TOKEN`.
 
-## 6. Checklist de prueba
+## 6. Nota sobre GitHub Actions deploy
+
+El workflow "Deploy staging (AWS ECS)" solo redespliega el servicio con la nueva imagen Docker. **NO aplica automáticamente** las variables de entorno desde `infra/ecs-task-definition.staging.json`.
+
+Para actualizar una variable de entorno:
+
+1. Modifica `infra/ecs-task-definition.staging.json` o el secret en AWS Secrets Manager
+2. Registra una nueva revisión de la task definition:
+
+```bash
+aws ecs register-task-definition --cli-input-json file://infra/ecs-task-definition.staging.json
+```
+
+3. Actualiza el servicio para usar la nueva revisión (o usa el workflow de deploy que hace `force-new-deployment`)
+
+## 7. Checklist de prueba
 
 1. `GET https://api-staging.tudominio.cl/health` responde `ok: true`.
 2. Vercel puede llamar al backend con `BOT_API_SECRET`.

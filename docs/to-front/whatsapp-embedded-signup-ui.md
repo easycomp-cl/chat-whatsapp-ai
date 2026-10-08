@@ -126,7 +126,7 @@ Alias: `GET /businesses/:id/whatsapp/connection`
   "updated_at": "2026-09-12T22:00:00.000Z",
   "meta": {
     "app_id": "1642810900259407",
-    "config_id": "3646774175478909"
+    "config_id": "1046141448397539"
   }
 }
 ```
@@ -164,7 +164,7 @@ Smoke interno: envía un texto al **Tester** usando el **token persistido del Em
 |------------|-----------|
 | Backend ECS | Migración `20260912220000_whatsapp_embedded_signup` + `META_APP_ID` |
 | Meta | Callback URL **sin cambiar**: `https://api-chatbotmanager.easycomp.cl/webhooks/whatsapp` |
-| Front | `config_id` `3646774175478909`, dominio `https://chatbotmanager.easycomp.cl` |
+| Front | `config_id` `1046141448397539` (Cloud API only: `whatsapp_business_management` + `whatsapp_business_messaging`, sin `business_management`, sin Marketing Messages, con system-user token que no expira), dominio `https://chatbotmanager.easycomp.cl` |
 | CORS | Origen `https://chatbotmanager.easycomp.cl` (si el browser llama la API directo; el BFF no lo necesita) |
 
 Fuera de alcance UI: App Review, DNS, display name, OAuth Redirect URIs en dashboard Meta.
