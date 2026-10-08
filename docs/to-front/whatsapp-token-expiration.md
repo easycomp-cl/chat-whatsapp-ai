@@ -24,7 +24,7 @@ La respuesta ahora incluye el campo `token_status` que indica el estado de expir
   "updated_at": "2026-09-12T22:00:00.000Z",
   "meta": {
     "app_id": "1642810900259407",
-    "config_id": "3646774175478909"
+    "config_id": "1046141448397539"
   }
 }
 ```
@@ -52,7 +52,9 @@ El campo `status` sigue existiendo y tiene prioridad para errores de configuraci
 
 ## Tokens permanentes
 
-Los tokens emitidos por la nueva configuración de Embedded Signup (`config_id: 3646774175478909`) son **permanentes** y no requieren renovación. Meta los emite como system user de integración con `expires_at = 0`.
+Los tokens emitidos por la configuración de Embedded Signup (`config_id: 1046141448397539`) son **permanentes** y no requieren renovación. Meta los emite como system user de integración con `expires_at = 0`.
+
+**IMPORTANTE:** Este config debe ser Cloud API only (permisos `whatsapp_business_management` + `whatsapp_business_messaging`, sin `business_management`, sin Marketing Messages) con token de system-user que no expira.
 
 Características:
 - `token_expires_at` será `null`

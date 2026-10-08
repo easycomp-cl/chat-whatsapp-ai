@@ -16,6 +16,7 @@
      - Build imagen Docker → ECR `chat-whatsapp-ai:latest`
      - `force-new-deployment` en ECS `chat-whatsapp-ai-combined`
      - Health check en `https://api-chatbotmanager.easycomp.cl/health`
+   - **IMPORTANTE:** El workflow "Deploy staging (AWS ECS)" solo redespliega el servicio con la nueva imagen. **NO aplica** las variables de entorno desde `infra/ecs-task-definition.staging.json`. Para cambiar una variable de entorno, debes registrar una nueva revisión de la task definition manualmente con `aws ecs register-task-definition --cli-input-json file://infra/ecs-task-definition.staging.json` y luego actualizar el servicio para usar esa revisión.
 3. Cuando termines de probar en la semana: `.\scripts\aws-staging-stop.ps1` (apaga Fargate; el ALB sigue).
 4. **Opcional — apagado automático 23:59 (Chile):** `.\scripts\setup-aws-nightly-stop.ps1` (~USD 0/mes).
 
