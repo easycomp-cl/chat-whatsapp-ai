@@ -242,6 +242,9 @@ describe("system events", () => {
     expect(systemEventTitle("mode_changed", "HUMAN")).toBe(
       "El asesor devolvió la conversación al bot"
     );
+    expect(systemEventTitle("bot_mode_resumed", "BOT")).toBe(
+      "Volvió a modo BOT (30 min sin respuesta)"
+    );
   });
 
   it("builds a dark vehicle card without owner data", () => {

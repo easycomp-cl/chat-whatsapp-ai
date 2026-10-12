@@ -1,6 +1,6 @@
 import { ConversationMode } from "@prisma/client";
-import { prisma } from "../../lib/prisma.js";
 import { isBotRuntimeBlocked } from "../onboarding/onboarding-config.js";
+import { humanModeTimeoutService } from "../runtime/human-mode-timeout.service.js";
 
 export type DecisionResult =
   | { canRespond: false; reason: "bot_disabled" | "human_mode" }
@@ -19,12 +19,9 @@ export class DecisionEngine {
     }
 
     if (input.mode === ConversationMode.HUMAN) {
-      if (input.botResumeAt && input.botResumeAt <= new Date()) {
-        await prisma.conversation.update({
-          where: { id: input.conversationId },
-          data: { mode: ConversationMode.BOT, botResumeAt: null }
-        });
-        return { canRespond: true, resumedFromSchedule: true };
+      const result = await humanModeTimeoutService.resumeIfDue(input.conversationId);
+      if (result.mode === ConversationMode.BOT) {
+        return { canRespond: true, resumedFromSchedule: result.resumed };
       }
       return { canRespond: false, reason: "human_mode" };
     }

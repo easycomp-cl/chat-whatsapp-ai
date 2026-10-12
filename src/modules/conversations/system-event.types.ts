@@ -3,6 +3,7 @@ export const SYSTEM_EVENT_KINDS = [
   "profile_updated",
   "handoff",
   "mode_changed",
+  "bot_mode_resumed",
   "plate_lookup",
   "vehicle_identified",
   "fitment_check",

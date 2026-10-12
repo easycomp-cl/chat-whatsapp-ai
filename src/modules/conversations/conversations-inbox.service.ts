@@ -38,6 +38,7 @@ export type InboxConversation = {
   assigned_admin_id: string | null;
   handoff_reason: string | null;
   bot_resume_at: string | null;
+  human_mode_until: string | null;
   last_message_at: string | null;
   chat_cleared_at: string | null;
   created_at: string;
@@ -77,6 +78,7 @@ function mapRow(row: InboxRow): InboxConversation {
     assigned_admin_id: row.assigned_admin_id,
     handoff_reason: row.handoff_reason,
     bot_resume_at: toIso(row.bot_resume_at),
+    human_mode_until: row.mode === "HUMAN" ? toIso(row.bot_resume_at) : null,
     last_message_at: toIso(row.last_message_at),
     chat_cleared_at: toIso(row.chat_cleared_at),
     created_at: row.created_at.toISOString(),

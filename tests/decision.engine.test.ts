@@ -1,15 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { ConversationMode } from "@prisma/client";
 
-vi.mock("../src/lib/prisma.js", () => ({
-  prisma: {
-    conversation: {
-      update: vi.fn()
-    }
+vi.mock("../src/modules/runtime/human-mode-timeout.service.js", () => ({
+  humanModeTimeoutService: {
+    resumeIfDue: vi.fn()
   }
 }));
 
-import { prisma } from "../src/lib/prisma.js";
+import { humanModeTimeoutService } from "../src/modules/runtime/human-mode-timeout.service.js";
 import { DecisionEngine } from "../src/modules/decision/decision.engine.js";
 
 describe("DecisionEngine", () => {
@@ -61,18 +59,27 @@ describe("DecisionEngine", () => {
     }
   });
 
-  it("blocks when conversation is in human mode", async () => {
+  it("blocks when conversation is in human mode inside the 30 min window", async () => {
+    vi.mocked(humanModeTimeoutService.resumeIfDue).mockResolvedValue({
+      resumed: false,
+      mode: ConversationMode.HUMAN
+    });
     const result = await engine.evaluate({
       tenantId: "t1",
       botGlobalEnabled: true,
       conversationId: "c1",
       mode: ConversationMode.HUMAN,
-      botResumeAt: null
+      botResumeAt: new Date(Date.now() + 10 * 60 * 1000)
     });
     expect(result).toEqual({ canRespond: false, reason: "human_mode" });
+    expect(humanModeTimeoutService.resumeIfDue).toHaveBeenCalledWith("c1");
   });
 
-  it("resumes bot when botResumeAt has passed", async () => {
+  it("answers an inbound message after the 30 min window instead of skipping", async () => {
+    vi.mocked(humanModeTimeoutService.resumeIfDue).mockResolvedValue({
+      resumed: true,
+      mode: ConversationMode.BOT
+    });
     const past = new Date(Date.now() - 60_000);
     const result = await engine.evaluate({
       tenantId: "t1",
@@ -82,7 +89,22 @@ describe("DecisionEngine", () => {
       botResumeAt: past
     });
     expect(result).toEqual({ canRespond: true, resumedFromSchedule: true });
-    expect(prisma.conversation.update).toHaveBeenCalled();
+    expect(humanModeTimeoutService.resumeIfDue).toHaveBeenCalledWith("c1");
+  });
+
+  it("answers when another worker already flipped the chat back to BOT", async () => {
+    vi.mocked(humanModeTimeoutService.resumeIfDue).mockResolvedValue({
+      resumed: false,
+      mode: ConversationMode.BOT
+    });
+    const result = await engine.evaluate({
+      tenantId: "t1",
+      botGlobalEnabled: true,
+      conversationId: "c1",
+      mode: ConversationMode.HUMAN,
+      botResumeAt: new Date(Date.now() - 60_000)
+    });
+    expect(result).toEqual({ canRespond: true, resumedFromSchedule: false });
   });
 
   it("allows response in bot mode", async () => {
@@ -94,5 +116,6 @@ describe("DecisionEngine", () => {
       botResumeAt: null
     });
     expect(result).toEqual({ canRespond: true, resumedFromSchedule: false });
+    expect(humanModeTimeoutService.resumeIfDue).not.toHaveBeenCalled();
   });
 });

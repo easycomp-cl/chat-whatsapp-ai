@@ -34,6 +34,8 @@ export function systemEventTitle(kind: SystemEventKind, actor: SystemEventActor)
       return actor === "HUMAN"
         ? "El asesor devolvió la conversación al bot"
         : "El bot reactivó las respuestas automáticas";
+    case "bot_mode_resumed":
+      return "Volvió a modo BOT (30 min sin respuesta)";
     case "mechanic_note":
       return `${who} dejó una nota de mecánica`;
   }

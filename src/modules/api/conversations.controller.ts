@@ -10,6 +10,7 @@ import { conversationsInboxService } from "../conversations/conversations-inbox.
 import { serializeMessage } from "../conversations/message-serializer.js";
 import { systemEventService } from "../conversations/system-event.service.js";
 import { buildSystemEvent } from "../conversations/system-event-copy.js";
+import { computeHumanModeUntil, withHumanModeUntil } from "../conversations/human-mode-until.js";
 
 const inboxQuerySchema = z.object({
   assigned_admin_id: z.string().optional(),
@@ -38,7 +39,7 @@ export async function listConversations(req: Request, res: Response) {
     orderBy: { lastMessageAt: "desc" },
     take: 50
   });
-  res.json(conversations);
+  res.json(conversations.map((conversation) => withHumanModeUntil(conversation)));
 }
 
 export async function getConversation(req: Request, res: Response) {
@@ -65,7 +66,7 @@ export async function getConversation(req: Request, res: Response) {
   }
 
   res.json({
-    ...conversation,
+    ...withHumanModeUntil(conversation),
     messages: conversation.messages.map(serializeMessage),
     flow_mode_locked: Boolean(conversation.activeFlowRunId),
     active_flow_run: conversation.activeFlowRun
@@ -89,7 +90,6 @@ const modeSchema = z.object({
 export async function patchConversationMode(req: Request, res: Response) {
   const id = paramId(req, "id");
   const body = modeSchema.parse(req.body);
-  const botResumeAt = body.bot_resume_at ? new Date(body.bot_resume_at) : null;
 
   const existing = await prisma.conversation.findUnique({
     where: { id },
@@ -109,7 +109,7 @@ export async function patchConversationMode(req: Request, res: Response) {
   }
 
   if (body.mode === "BOT") {
-    await handoffService.enableBotMode(id, botResumeAt);
+    await handoffService.enableBotMode(id);
     const conversation = await prisma.conversation.findUnique({ where: { id } });
     if (conversation) {
       await usageEventsService.track({
@@ -121,7 +121,7 @@ export async function patchConversationMode(req: Request, res: Response) {
   } else {
     await prisma.conversation.update({
       where: { id },
-      data: { mode: ConversationMode.HUMAN, botResumeAt }
+      data: { mode: ConversationMode.HUMAN, botResumeAt: computeHumanModeUntil() }
     });
     const conversation = await prisma.conversation.findUnique({ where: { id } });
     if (conversation) {
@@ -153,5 +153,5 @@ export async function patchConversationMode(req: Request, res: Response) {
   }
 
   const updated = await prisma.conversation.findUnique({ where: { id } });
-  res.json(updated);
+  res.json(updated ? withHumanModeUntil(updated) : updated);
 }
