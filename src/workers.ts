@@ -14,6 +14,11 @@ import {
   stopTokenExpirationCheckWorker,
   scheduleTokenExpirationCheck
 } from "./modules/queue/token-expiration-check.worker.js";
+import {
+  startHumanModeTimeoutWorker,
+  stopHumanModeTimeoutWorker,
+  scheduleHumanModeTimeoutCheck
+} from "./modules/queue/human-mode-timeout.worker.js";
 
 async function bootstrap() {
   try {
@@ -30,8 +35,10 @@ async function bootstrap() {
   startFlowWebhookDeliveryWorker();
   startWhatsappTemplatesWorker();
   startTokenExpirationCheckWorker();
-  
+  startHumanModeTimeoutWorker();
+
   await scheduleTokenExpirationCheck();
+  await scheduleHumanModeTimeoutCheck();
 
   logger.info("EasyComp Bot IA workers listening");
 
@@ -43,6 +50,7 @@ async function bootstrap() {
     await stopFlowWebhookDeliveryWorker();
     await stopWhatsappTemplatesWorker();
     await stopTokenExpirationCheckWorker();
+    await stopHumanModeTimeoutWorker();
     await disconnectRedis();
     await prisma.$disconnect();
     process.exit(0);

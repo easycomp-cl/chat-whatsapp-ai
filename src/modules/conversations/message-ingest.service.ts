@@ -15,6 +15,7 @@ import { formatWhatsappDeliveryErrorMessage } from "../../utils/whatsapp-deliver
 import { shouldUpgradeWhatsappDeliveryStatus } from "../../utils/whatsapp-delivery-status.js";
 import { usageEventsService, USAGE_EVENT_TYPES } from "../metrics/usage-events.service.js";
 import { resolveReplyContext } from "./resolve-reply-context.js";
+import { computeHumanModeUntil, isHumanModeTimeoutDue } from "./human-mode-until.js";
 
 export const CUSTOMER_REVOKED_MESSAGE_TEXT = "Mensaje eliminado por el usuario";
 
@@ -112,11 +113,19 @@ export class MessageIngestService {
       }
     });
 
+    const refreshHumanCountdown =
+      conversation.mode === ConversationMode.HUMAN &&
+      !isHumanModeTimeoutDue({
+        botResumeAt: conversation.botResumeAt,
+        fallbackActivityAt: conversation.updatedAt
+      });
+
     await prisma.conversation.update({
       where: { id: conversation.id },
       data: {
         lastMessageAt: input.message.timestamp,
-        status: ConversationStatus.OPEN
+        status: ConversationStatus.OPEN,
+        ...(refreshHumanCountdown ? { botResumeAt: computeHumanModeUntil() } : {})
       }
     });
 
@@ -470,6 +479,7 @@ export class MessageIngestService {
       data: {
         lastMessageAt: new Date(),
         mode: ConversationMode.HUMAN,
+        botResumeAt: computeHumanModeUntil(),
         status: ConversationStatus.OPEN
       }
     });

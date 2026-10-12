@@ -1,4 +1,5 @@
 import { decisionEngine } from "../decision/decision.engine.js";
+import { humanModeTimeoutService } from "./human-mode-timeout.service.js";
 import { faqEngine } from "../faq/faq.engine.js";
 import { ragService } from "../rag/rag.service.js";
 import { openAiService } from "./openai.service.js";
@@ -131,6 +132,9 @@ export class ResponsePipelineService {
     });
 
     if (!decision.canRespond) {
+      if (decision.reason === "human_mode") {
+        await humanModeTimeoutService.refreshCountdown(input.conversation.id);
+      }
       logger.info(
         { conversationId: input.conversation.id, reason: decision.reason },
         "Bot skipped inbound message"

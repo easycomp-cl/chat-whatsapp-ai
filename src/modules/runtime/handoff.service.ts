@@ -9,6 +9,7 @@ import {
   getStandardTemplate
 } from "../whatsapp-templates/standard-template-pack.js";
 import { HANDOFF_REASON_LABELS, type HandoffReason } from "./prompts.js";
+import { computeHumanModeUntil } from "../conversations/human-mode-until.js";
 
 const DEFAULT_HANDOFF_MESSAGE = "Déjame revisarlo con un asesor y te respondemos en breve.";
 const HANDOFF_TEMPLATE_NAME = "aviso_handoff_es";
@@ -44,7 +45,8 @@ export class HandoffService {
       data: {
         mode: ConversationMode.HUMAN,
         assignedAdminId: primaryAgent?.id ?? null,
-        handoffReason: input.handoffReason
+        handoffReason: input.handoffReason,
+        botResumeAt: computeHumanModeUntil()
       }
     });
 
@@ -106,13 +108,13 @@ export class HandoffService {
     return { reply };
   }
 
-  async enableBotMode(conversationId: string, botResumeAt?: Date | null) {
+  async enableBotMode(conversationId: string) {
     await prisma.conversation.update({
       where: { id: conversationId },
       data: {
         mode: ConversationMode.BOT,
         handoffReason: null,
-        botResumeAt: botResumeAt ?? null,
+        botResumeAt: null,
         assignedAdminId: null
       }
     });
